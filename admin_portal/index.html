@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UniRide Admin Dashboard | UET RCET Campus Transit</title>
+  <meta name="description"
+    content="Central Fleet Management and Administration Portal for UniRide University Transit System. Real-time bus tracking, routes, driver assignments, and timetables.">
+
+  <!-- Google Fonts: Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS for Live Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <!-- Fullscreen Initial Cloud Loader -->
+  <div id="appLoader" class="app-loader-overlay">
+    <div class="loader-card">
+      <div class="loader-brand-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z" />
+        </svg>
+      </div>
+      <h2>UniRide <span class="gold">Admin</span></h2>
+      <p class="loader-subtitle">UET RCET Campus Transit HQ</p>
+      <div class="spinner-track">
+        <div class="spinner-bar"></div>
+      </div>
+      <div class="loader-status-text" id="loaderStatusText">Loading Campus Transit Network...</div>
+    </div>
+  </div>
+
+  <div class="app-shell">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-badge">
+          <!-- Bus SVG Icon -->
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z" />
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h1>UniRide <span class="gold">Admin</span></h1>
+          <p>UET RCET Gujranwala</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Core Operations</div>
+
+        <a href="#overview" class="nav-item active" data-tab="overview" id="navTabOverview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="7" height="9" x="3" y="3" rx="1" />
+            <rect width="7" height="5" x="14" y="3" rx="1" />
+            <rect width="7" height="9" x="14" y="12" rx="1" />
+            <rect width="7" height="5" x="3" y="16" rx="1" />
+          </svg>
+          <span>Live Fleet Overview</span>
+        </a>
+
+        <a href="#buses" class="nav-item" data-tab="buses" id="navTabBuses">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 6v6" />
+            <path d="M15 6v6" />
+            <path d="M2 12h19.6" />
+            <path
+              d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.2 6 18.2 6H5.8C4.8 6 3.9 6.8 3.6 7.8l-1.4 5c-.1.4-.2.8-.2 1.2 0 .4.1.8.2 1.2.3 1.1.8 2.8.8 2.8h3" />
+            <circle cx="7" cy="18" r="2" />
+            <circle cx="17" cy="18" r="2" />
+          </svg>
+          <span>Manage Buses</span>
+          <span class="nav-counter" id="navBusCount">5</span>
+        </a>
+
+        <a href="#routes" class="nav-item" data-tab="routes" id="navTabRoutes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="6" cy="19" r="3" />
+            <path d="M9 19h8.5a4.5 4.5 0 0 0 0-9H8a4 4 0 0 1 0-8h9" />
+            <circle cx="18" cy="5" r="3" />
+          </svg>
+          <span>Routes & Stops</span>
+          <span class="nav-counter" id="navRouteCount">5</span>
+        </a>
+
+        <a href="#timetables" class="nav-item" data-tab="timetables" id="navTabTimetables">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          <span>Timetable Shifts</span>
+        </a>
+
+        <a href="#special-shuttle" class="nav-item" data-tab="special-shuttle" id="navTabSpecialShuttle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+          <span>Special Shuttle</span>
+          <span class="nav-counter" id="navSpecialShuttleCount">0</span>
+        </a>
+
+        <div class="nav-section-label" style="margin-top: 14px;">Administration</div>
+
+        <a href="#drivers" class="nav-item" data-tab="drivers" id="navTabDrivers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span>Driver Staff</span>
+          <span class="nav-counter" id="navDriverCount">5</span>
+        </a>
+
+        <a href="#alerts" class="nav-item" data-tab="alerts" id="navTabAlerts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+          <span>Broadcast Alerts</span>
+          <span class="nav-counter" id="navAlertCount">2</span>
+        </a>
+
+        <a href="#settings" class="nav-item" data-tab="settings" id="navTabSettings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <span>Settings & Backup</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="admin-profile">
+          <div class="admin-avatar">AD</div>
+          <div class="admin-meta">
+            <h4>Transport Officer</h4>
+            <p>Admin Clearance <span class="admin-chip">HQ</span></p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <main class="main-wrapper">
+
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="page-title-box">
+            <h2 id="topbarPageTitle">Fleet Control Center</h2>
+            <p id="topbarPageSubtitle">Real-time telemetry and campus transport monitoring</p>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="live-status-pill">
+            <span class="pulse-dot"></span>
+            <span>Live GPS Active</span>
+          </div>
+
+          <button class="btn btn-primary btn-sm" onclick="openSpecialShuttleModal()" style="display:flex; align-items:center; gap:6px;">
+            ⚡ Special Shuttle
+          </button>
+
+          <button class="btn btn-secondary btn-sm" onclick="openBroadcastAlertModal()">
+            📢 Send Broadcast
+          </button>
+
+          <button class="btn btn-gold btn-sm" onclick="openAddBusModal()">
+            ➕ Add Bus
+          </button>
+        </div>
+      </header>
+
+      <!-- Page Views Container -->
+      <div class="page-container">
+
+        <!-- ================================================================
+             TAB 1: LIVE FLEET OVERVIEW & METRICS
+             ================================================================ -->
+        <section class="tab-pane active" id="tab-overview">
+
+          <!-- Dynamic Active Special Shuttles Banner -->
+          <div id="overviewSpecialShuttleBanner" style="display:none; margin-bottom: 20px;"></div>
+
+          <!-- Stat Metric Cards -->
+          <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+            <div class="stat-card featured">
+              <div class="stat-content">
+                <p class="label">Operational Fleet</p>
+                <h3 class="value" id="kpiActiveBuses">4 / 5</h3>
+                <div class="stat-trend" id="kpiActiveBusesSub">80% fleet active on road</div>
+              </div>
+              <div class="stat-icon">🚌</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-content">
+                <p class="label">Total Routes</p>
+                <h3 class="value" id="kpiTotalRoutes">5</h3>
+                <div class="stat-trend">Gujranwala City Network</div>
+              </div>
+              <div class="stat-icon">🛣️</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-content">
+                <p class="label">Active Drivers</p>
+                <h3 class="value" id="kpiActiveDrivers">5</h3>
+                <div class="stat-trend">100% on schedule</div>
+              </div>
+              <div class="stat-icon">👨‍✈️</div>
+            </div>
+          </div>
+
+          <!-- Live Interactive Map & Active Bus Sidebar -->
+          <div class="grid-2col">
+
+            <div class="card" id="liveMapCard">
+              <div class="card-header" style="flex-wrap:wrap; gap:12px;">
+                <div>
+                  <h3>📍 Live University Fleet Tracking Map</h3>
+                  <p>Real-time vehicle coordinates & high-precision road polylines along GT Road & Sialkot Bypass</p>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <!-- Map Style Toggle -->
+                  <div class="map-layer-selector">
+                    <button class="map-layer-btn active" id="btnLayerStreets" onclick="setMapLayerType('streets')">🗺️ Streets</button>
+                    <button class="map-layer-btn" id="btnLayerSatellite" onclick="setMapLayerType('satellite')">🛰️ Satellite</button>
+                    <button class="map-layer-btn" id="btnLayerHybrid" onclick="setMapLayerType('hybrid')">🌐 Hybrid</button>
+                  </div>
+                  <button class="btn btn-secondary btn-sm" onclick="locateCampusGate()">🎓 Focus Campus</button>
+                  <button class="btn btn-secondary btn-sm" onclick="resetMapView()">🔄 Reset</button>
+                  <button class="btn btn-secondary btn-sm" id="btnToggleMapFullscreen" onclick="toggleMapFullscreen()">⛶ Fullscreen</button>
+                </div>
+              </div>
+
+              <!-- Interactive Route Filter Chips Bar (Matched to Flutter Mobile App) -->
+              <div class="map-route-filter-bar" id="mapRouteFilterBar">
+                <!-- Dynamically populated via JavaScript -->
+              </div>
+
+              <div id="leafletLiveMap"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>⚡ Active Moving Vehicles</h3>
+                  <p>Telemetry stream & instant ETAs</p>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="live-bus-list" id="overviewLiveBusList">
+                  <!-- Injected via JavaScript -->
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             TAB 2: MANAGE BUSES (CRUD)
+             ================================================================ -->
+        <section class="tab-pane" id="tab-buses">
+
+          <div class="toolbar-bar">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input type="text" id="busSearchInput" placeholder="Search by number plate, route, or driver...">
+            </div>
+
+            <div class="filter-group">
+              <select class="filter-select" id="busStatusFilter">
+                <option value="all">All Statuses</option>
+                <option value="onRoute">Active On Route</option>
+                <option value="approaching">Approaching</option>
+                <option value="stopped">Standby / Stopped</option>
+                <option value="maintenance">In Maintenance</option>
+              </select>
+
+              <button class="btn btn-primary" onclick="openAddBusModal()">
+                ➕ Add New Bus
+              </button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Bus Number</th>
+                  <th>Assigned Route</th>
+                  <th>Assigned Driver</th>
+                  <th>Status</th>
+                  <th>Live Speed & Next Stop</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="busesTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             TAB 3: MANAGE ROUTES & STOPS (CRUD)
+             ================================================================ -->
+        <section class="tab-pane" id="tab-routes">
+
+          <div class="toolbar-bar">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input type="text" id="routeSearchInput" placeholder="Search routes by code or title...">
+            </div>
+
+            <button class="btn btn-primary" onclick="openAddRouteModal()">
+              ➕ Add New Route
+            </button>
+          </div>
+
+          <div class="card-grid-3" id="routesCardGrid">
+            <!-- Injected via JavaScript -->
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             TAB 4: TIMETABLES & SHIFTS
+             ================================================================ -->
+        <section class="tab-pane" id="tab-timetables">
+
+          <div class="toolbar-bar">
+            <h3 style="font-size:16px; font-weight:700; color:var(--primary-navy);">University Schedule Timetable</h3>
+            <button class="btn btn-primary" onclick="openAddTimetableModal()">
+              ➕ Add Timetable Slot
+            </button>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Shift Description</th>
+                  <th>Route</th>
+                  <th>Bus Assigned</th>
+                  <th>Departure Time</th>
+                  <th>Arrival at Campus</th>
+                  <th>Operating Days</th>
+                  <th>Shift Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="timetablesTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             TAB 5: DRIVERS DIRECTORY (CRUD)
+             ================================================================ -->
+        <section class="tab-pane" id="tab-drivers">
+
+          <div class="toolbar-bar">
+            <h3 style="font-size:16px; font-weight:700; color:var(--primary-navy);">Registered Transport Drivers</h3>
+            <button class="btn btn-primary" onclick="openAddDriverModal()">
+              ➕ Register New Driver
+            </button>
+          </div>
+
+          <div class="card-grid-3" id="driversCardGrid">
+            <!-- Injected via JavaScript -->
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             TAB 6: BROADCAST ALERTS & NOTIFICATIONS
+             ================================================================ -->
+        <section class="tab-pane" id="tab-alerts">
+
+          <div class="toolbar-bar">
+            <div>
+              <h3 style="font-size:16px; font-weight:700; color:var(--primary-navy);">Campus Broadcast Announcements
+              </h3>
+              <p style="font-size:12px; color:var(--text-secondary);">Push emergency notifications and delay updates to
+                student mobile apps</p>
+            </div>
+            <button class="btn btn-gold" onclick="openBroadcastAlertModal()">
+              📢 Dispatch New Alert
+            </button>
+          </div>
+
+          <div id="alertsListContainer">
+            <!-- Injected via JavaScript -->
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             TAB 7: SETTINGS & BACKUP
+             ================================================================ -->
+        <section class="tab-pane" id="tab-settings">
+
+          <div class="card" style="max-width:750px; margin: 0 auto; padding: 28px;">
+            <h3 style="font-size: 18px; font-weight:700; color:var(--primary-navy); margin-bottom: 8px;">
+              System Configuration & Data Synchronization
+            </h3>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 24px;">
+              Manage local database synchronization, export fleet schedules, or restore demo configurations for
+              university presentations.
+            </p>
+
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              <div
+                style="display:flex; align-items:center; justify-content:space-between; padding:16px; background:var(--bg-subtle); border-radius:var(--radius-md);">
+                <div>
+                  <h4 style="font-size:14px; font-weight:600;">Export Fleet Configuration (JSON)</h4>
+                  <p style="font-size:12px; color:var(--text-secondary);">Full database payload including routes,
+                    coordinates, buses & drivers</p>
+                </div>
+                <button class="btn btn-secondary" onclick="exportFleetJSON()">📥 Export JSON</button>
+              </div>
+
+              <div
+                style="display:flex; align-items:center; justify-content:space-between; padding:16px; background:var(--bg-subtle); border-radius:var(--radius-md);">
+                <div>
+                  <h4 style="font-size:14px; font-weight:600;">Export Active Buses (CSV)</h4>
+                  <p style="font-size:12px; color:var(--text-secondary);">Spreadsheet-compatible export for university
+                    transport records</p>
+                </div>
+                <button class="btn btn-secondary" onclick="exportBusesCSV()">📊 Export CSV</button>
+              </div>
+
+              <div
+                style="display:flex; align-items:center; justify-content:space-between; padding:16px; background:#FEF2F2; border:1px solid #FECACA; border-radius:var(--radius-md);">
+                <div>
+                  <h4 style="font-size:14px; font-weight:600; color:#991B1B;">Reset to Default Demo State</h4>
+                  <p style="font-size:12px; color:#B91C1C;">Restores the original 5 UET RCET routes, buses, and
+                    timetables</p>
+                </div>
+                <button class="btn btn-danger-ghost" onclick="resetToDefaultData()">🔄 Reset Data</button>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             TAB: SPECIAL SHUTTLE DISPATCH & EPHEMERAL RUNS
+             ================================================================ -->
+        <section class="tab-pane" id="tab-special-shuttle">
+          <!-- Premium Hero Dispatch Banner -->
+          <div class="special-hero-banner">
+            <div class="special-hero-top">
+              <div class="special-hero-brand">
+                <div class="special-hero-icon-bubble">⚡</div>
+                <div>
+                  <div class="special-hero-title-row">
+                    <h2 class="special-hero-title">Special Shuttle Dispatch System</h2>
+                    <span class="badge-special-glow">Off-Schedule Transit</span>
+                    <span class="badge-live-pulse"><span class="pulse-dot"></span> Student App Sync</span>
+                  </div>
+                  <p class="special-hero-desc">
+                    Publish on-demand campus shuttle schedules (Exams, Sports Gala, Weather Alerts, Night Shifts) with live push notifications directly to the UET RCET Student Mobile App.
+                  </p>
+                </div>
+              </div>
+              <div class="special-hero-actions">
+                <button class="btn-gold-premium" onclick="openSpecialShuttleModal()">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  <span>Dispatch Special Shuttle</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="special-hero-metrics">
+              <div class="special-metric-item">
+                <span class="special-metric-value" id="heroActiveShuttlesCount">0</span>
+                <span class="special-metric-label">Active Shuttles</span>
+              </div>
+              <div class="special-metric-divider"></div>
+              <div class="special-metric-item">
+                <span class="special-metric-value" id="heroPastShuttlesCount">0</span>
+                <span class="special-metric-label">Completed Runs</span>
+              </div>
+              <div class="special-metric-divider"></div>
+              <div class="special-metric-item">
+                <span class="special-metric-value">Auto</span>
+                <span class="special-metric-label">Expiry & Cleanup</span>
+              </div>
+              <div class="special-metric-divider"></div>
+              <div class="special-metric-item">
+                <span class="special-metric-value">Active</span>
+                <span class="special-metric-label">Push Broadcast</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Special Shuttles Section -->
+          <div style="margin-bottom: 30px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+              <h3 style="font-size:16px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+                <span>🟢</span> Active Special Shuttle Announcements
+                <span class="nav-counter" id="activeShuttlesHeaderCount" style="background:var(--primary-navy); color:#FED136;">0</span>
+              </h3>
+              <span style="font-size:12px; color:var(--text-secondary);">Displayed in Student App schedule banner</span>
+            </div>
+            
+            <div id="activeSpecialShuttlesGrid" class="special-card-grid">
+              <!-- Dynamically rendered via JavaScript -->
+            </div>
+          </div>
+
+          <!-- Past Special Shuttles History Table -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>📜 Shuttle Dispatch History & Past Runs</h3>
+                <p>Archived record of previous completed and expired special trips</p>
+              </div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Bus & Plate</th>
+                    <th>Purpose / Event</th>
+                    <th>Destination / Route</th>
+                    <th>Time Window</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="specialShuttlesHistoryTable">
+                  <!-- Dynamically rendered -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ========================================================================
+       MODALS
+       ======================================================================== -->
+
+  <!-- 1. Add / Edit Bus Modal -->
+  <div class="modal-backdrop" id="busModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="busModalTitle">Add New Bus</h3>
+        <button class="btn-icon-ghost" style="color:var(--text-secondary);" onclick="hideModal('busModal')">✕</button>
+      </div>
+      <form id="busForm" onsubmit="handleBusFormSubmit(event)">
+        <div class="modal-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Bus Registration / Number *</label>
+              <input type="text" id="busNumberInput" placeholder="e.g. GAU-2555" required>
+            </div>
+            <div class="form-group">
+              <label>Bus Model / Type</label>
+              <input type="text" id="busModelInput" placeholder="e.g. Hino 52-Seater">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Assigned Route *</label>
+            <select id="busRouteSelect" class="route-select-populate" required></select>
+          </div>
+
+          <div class="form-group">
+            <label>Assigned Driver *</label>
+            <select id="busDriverSelect" class="driver-select-populate" required></select>
+          </div>
+
+          <div class="form-group">
+            <label>Passenger Capacity</label>
+            <input type="number" id="busCapacityInput" value="52" min="10" max="80" placeholder="e.g. 52">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('busModal')">Cancel</button>
+          <button type="submit" class="btn btn-gold">Save Bus</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Add / Edit Route Modal -->
+  <div class="modal-backdrop" id="routeModal">
+    <div class="modal-box modal-box-lg">
+      <div class="modal-header">
+        <div>
+          <h3 id="routeModalTitle">Create Transport Route</h3>
+          <p style="font-size:12px; color:var(--text-secondary); margin:0;">Configure route details, full sequence of stops, timings & GPS coordinates</p>
+        </div>
+        <button class="btn-icon-ghost" style="color:var(--text-secondary);" onclick="hideModal('routeModal')">✕</button>
+      </div>
+      <form id="routeForm" onsubmit="handleRouteFormSubmit(event)">
+        <div class="modal-body" style="gap:20px;">
+          <!-- Route Basic Meta -->
+          <div style="background:var(--ice-blue); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:16px;">
+            <h4 style="font-size:13px; font-weight:700; color:var(--primary-navy); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+              <span>🚍</span> Route Identification & Settings
+            </h4>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label>Route Code *</label>
+                <input type="text" id="routeCodeInput" placeholder="e.g. Route No. 6" required>
+              </div>
+              <div class="form-group">
+                <label>Estimated Trip Duration (Mins)</label>
+                <input type="number" id="routeDurationInput" value="60" min="5" max="300">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top:12px;">
+              <label>Route Title / Path Name *</label>
+              <input type="text" id="routeTitleInput" placeholder="e.g. Satellite Town / Model Town Express" required>
+            </div>
+
+            <div class="form-group" style="margin-top:12px;">
+              <label>Route Description & Connecting Hubs</label>
+              <textarea id="routeDescInput" rows="2"
+                placeholder="Key highways, transfer points, and bus model details..."></textarea>
+            </div>
+
+            <div class="form-group" style="margin-top:12px;">
+              <label>Map Polyline Color</label>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="color" id="routeColorInput" value="#0A2240" style="height:38px; width:60px; padding:2px; cursor:pointer; border-radius:6px;">
+                <span style="font-size:12px; color:var(--text-secondary);">Color used to draw route track and stop markers on Leaflet Fleet Map</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Route Stops & Schedule Sequencer with Interactive Location Picker Map -->
+          <div class="stops-manager-section">
+            <div class="stops-manager-header">
+              <div>
+                <h4 style="font-size:14px; font-weight:700; color:var(--primary-navy); display:flex; align-items:center; gap:8px;">
+                  <span>📍</span>
+                  <span>Interactive Route Stops & Map Location Picker</span>
+                  <span class="badge" id="modalStopsCountBadge" style="background:var(--primary-navy); color:#FFF; font-size:11px; padding:2px 8px;">0 Stops</span>
+                </h4>
+                <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
+                  Click anywhere on the map to set stop locations or drag the numbered checkpoint pins.
+                </p>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="btn btn-gold btn-sm" onclick="addModalStopRow()">
+                  ➕ Add Stop
+                </button>
+              </div>
+            </div>
+
+            <!-- Interactive Leaflet Map Location Picker Component -->
+            <div class="modal-map-picker-card">
+              <div class="modal-map-header">
+                <div class="modal-map-title">
+                  <span>🗺️</span>
+                  <strong>Map Location Picker</strong>
+                  <span class="picker-hint-badge" id="pickerActiveStopHint">👆 Click map to position stop</span>
+                </div>
+                <div class="modal-map-tools">
+                  <button type="button" class="btn-xs btn-gold" onclick="addModalStopAtMapCenter()">📍 Add Stop at Center</button>
+                  <button type="button" class="btn-xs btn-secondary" onclick="snapModalStopToCampus()">🎓 Add Campus Stop</button>
+                  <button type="button" class="btn-xs btn-secondary" onclick="resetModalPickerView()">🔄 Center View</button>
+                </div>
+              </div>
+              
+              <div id="routePickerLeafletMap" style="height: 270px; width: 100%; border-radius: 8px; border: 1.5px solid var(--border-color); position: relative; background:#E2E8F0;"></div>
+              
+              <div class="modal-map-footer-help">
+                <span>💡 <strong>Quick Guide:</strong> Click on any stop in the list below, then click on the map to position it — or drag pins <strong>(1, 2, 3...)</strong> directly!</span>
+              </div>
+            </div>
+
+            <!-- Dynamic Stops Container -->
+            <div id="routeStopsContainer" class="route-stops-manager-list" style="margin-top:14px;">
+              <!-- Dynamically populated via JavaScript -->
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px dashed var(--border-color);">
+              <span style="font-size:11.5px; color:var(--text-secondary);">💡 Tip: Use ⬆ ⬇ buttons to reorder checkpoints sequence.</span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addModalStopRow()">
+                ➕ Add Another Stop
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('routeModal')">Cancel</button>
+          <button type="submit" class="btn btn-gold" style="padding:10px 24px; font-size:13.5px;">💾 Save Route & All Stops</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. Add / Edit Timetable Modal -->
+  <div class="modal-backdrop" id="timetableModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="ttModalTitle">Timetable Shift Slot</h3>
+        <button class="btn-icon-ghost" style="color:var(--text-secondary);"
+          onclick="hideModal('timetableModal')">✕</button>
+      </div>
+      <form id="timetableForm" onsubmit="handleTimetableSubmit(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Shift Type *</label>
+            <select id="ttShiftName">
+              <option value="Morning Shift (University Arrival)">Morning Shift (University Arrival)</option>
+              <option value="Evening Return Shift (Departure from RCET)">Evening Return Shift (Departure from RCET)
+              </option>
+              <option value="Late Evening Shift">Late Evening Shift</option>
+              <option value="Weekend / Special Shift">Weekend / Special Shift</option>
+            </select>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Route *</label>
+              <select id="ttRouteSelect" class="route-select-populate" required></select>
+            </div>
+            <div class="form-group">
+              <label>Bus *</label>
+              <select id="ttBusSelect" class="bus-select-populate" required></select>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Departure Time *</label>
+              <input type="text" id="ttDepTime" placeholder="e.g. 07:15 AM" required>
+            </div>
+            <div class="form-group">
+              <label>Arrival Time *</label>
+              <input type="text" id="ttArrTime" placeholder="e.g. 08:20 AM" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Operating Days</label>
+            <input type="text" id="ttDays" value="Mon - Fri">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('timetableModal')">Cancel</button>
+          <button type="submit" class="btn btn-gold">Save Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Add / Edit Driver Modal -->
+  <div class="modal-backdrop" id="driverModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="driverModalTitle">Register Transport Driver</h3>
+        <button class="btn-icon-ghost" style="color:var(--text-secondary);"
+          onclick="hideModal('driverModal')">✕</button>
+      </div>
+      <form id="driverForm" onsubmit="handleDriverSubmit(event)">
+        <div class="modal-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Driver Full Name *</label>
+              <input type="text" id="drvNameInput" placeholder="e.g. Muhammad Naveed" required>
+            </div>
+            <div class="form-group">
+              <label>Phone Number *</label>
+              <input type="text" id="drvPhoneInput" placeholder="e.g. +92 300 1234567" required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>CNIC Number</label>
+              <input type="text" id="drvCnicInput" placeholder="e.g. 34101-1234567-1">
+            </div>
+            <div class="form-group">
+              <label>PSV / HTV License No</label>
+              <input type="text" id="drvLicenseInput" placeholder="e.g. GRW-99124-PSV">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Assign Default Bus</label>
+            <select id="drvBusSelect" class="bus-select-populate">
+              <option value="">Unassigned</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('driverModal')">Cancel</button>
+          <button type="submit" class="btn btn-gold">Save Driver</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. Broadcast Alert Modal -->
+  <div class="modal-backdrop" id="alertModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📢 Dispatch Campus Broadcast Alert</h3>
+        <button class="btn-icon-ghost" style="color:var(--text-secondary);" onclick="hideModal('alertModal')">✕</button>
+      </div>
+      <form id="alertForm" onsubmit="handleAlertSubmit(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Alert Title / Heading *</label>
+            <input type="text" id="alertTitleInput" placeholder="e.g. Route 2 Weather Delay Notice" required>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Alert Severity / Type</label>
+              <select id="alertTypeSelect">
+                <option value="warning">⚠️ Warning / Delay Notice</option>
+                <option value="info">ℹ️ General Information / Schedule Change</option>
+                <option value="emergency">🚨 High Priority Emergency</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Target Audience / Route</label>
+              <select id="alertRouteTarget">
+                <option value="all">All University Routes & Students</option>
+                <option value="route_1">Route No. 1 (Chanda Qila)</option>
+                <option value="route_2">Route No. 2 (Sheikhupura Mor)</option>
+                <option value="route_3">Route No. 3 (Lari Adda)</option>
+                <option value="route_4">Route No. 4 (Pindi Bypass)</option>
+                <option value="route_5">Route No. 5 (Cantt Express)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Message Content *</label>
+            <textarea id="alertMsgInput" rows="3" placeholder="Provide precise information for students..."
+              required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('alertModal')">Cancel</button>
+          <button type="submit" class="btn btn-gold">🚀 Dispatch Alert Now</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. Special Shuttle Modal -->
+  <div class="modal-backdrop" id="specialShuttleModal">
+    <div class="modal-box" style="max-width: 540px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="width:38px; height:38px; border-radius:10px; background:linear-gradient(135deg, #0A2240, #1E3A8A); color:#FED136; display:flex; align-items:center; justify-content:center; font-size:18px; border:1px solid rgba(254,209,54,0.3);">⚡</div>
+          <div>
+            <h3 style="margin:0; font-size:16px; color:#0A2240;">Dispatch Special Shuttle</h3>
+            <p style="margin:0; font-size:11.5px; color:var(--text-secondary);">Post special bus schedule (Bus, Route, Date, Time & Purpose)</p>
+          </div>
+        </div>
+        <button class="btn-icon-ghost" style="color:var(--text-secondary);" onclick="hideModal('specialShuttleModal')">✕</button>
+      </div>
+
+      <form id="specialShuttleForm" onsubmit="handleSpecialShuttleSubmit(event)">
+        <div class="modal-body" style="gap:16px;">
+          <!-- Bus Select -->
+          <div class="form-group">
+            <label>Select Fleet Bus *</label>
+            <select id="specialBusSelect" required>
+              <option value="">-- Choose Available Bus --</option>
+            </select>
+          </div>
+
+          <!-- Simple Route Input -->
+          <div class="form-group">
+            <label>Route / Destination *</label>
+            <input type="text" id="specialRouteInput" placeholder="e.g. RCET Campus ➔ Sheikhupura Mor / Lari Adda" value="RCET Campus ➔ Sheikhupura Mor" required>
+          </div>
+
+          <!-- Trip Purpose Chips & Input -->
+          <div class="form-group">
+            <label>Trip Purpose / Category *</label>
+            <div class="special-purpose-chips" id="specialPurposeChips">
+              <button type="button" class="purpose-chip-btn selected" onclick="selectSpecialPurposeChip('🎓 Exam Special Departure')">🎓 Exam Special</button>
+              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('🚨 Emergency Breakdown Backup')">🚨 Breakdown Backup</button>
+              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('⚽ Sports Gala / Event Shuttle')">⚽ Sports Gala</button>
+              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('🌧️ Rainy / Weather Special')">🌧️ Weather Special</button>
+              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('🚌 Extra City Shift')">🚌 Extra City Shift</button>
+            </div>
+            <input type="text" id="specialPurposeInput" value="🎓 Exam Special Departure" style="margin-top:8px;" required>
+          </div>
+
+          <!-- Date & Time Window -->
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label>📅 Trip Date *</label>
+              <input type="date" id="specialDateInput" required>
+            </div>
+            <div class="form-group">
+              <label>🕒 Start Time *</label>
+              <input type="time" id="specialStartTime" required>
+            </div>
+            <div class="form-group">
+              <label>⏳ End Time *</label>
+              <input type="time" id="specialEndTime" required>
+            </div>
+          </div>
+
+          <div style="background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); border: 1.5px solid #FDE68A; border-radius: var(--radius-md); padding: 14px; box-shadow: 0 2px 6px rgba(180, 83, 9, 0.06);">
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; font-weight:700; color:#92400E; margin:0;">
+              <input type="checkbox" id="specialBroadcastAlertCheckbox" checked style="width:18px; height:18px; accent-color:#0A2240; cursor:pointer;">
+              <span>Broadcast Instant Push Alert to Students</span>
+            </label>
+            <p style="font-size:11.5px; color:#B45309; margin:4px 0 0 28px; line-height:1.4;">
+              Highlighted announcement banner will appear instantly on all active UET RCET mobile apps.
+            </p>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('specialShuttleModal')">Cancel</button>
+          <button type="submit" class="btn-gold-premium" style="padding:11px 24px; font-weight:800;">
+            🚀 Post Special Shuttle Schedule
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Data & Application Logic -->
+  <script src="route_polylines.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>

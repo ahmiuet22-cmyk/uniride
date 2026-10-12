@@ -1,0 +1,55 @@
+{
+  "live_buses": {
+    "bus_gau_2555": {
+      "bus_id": "bus_gau_2555",
+      "name": "GAU-2555",
+      "route_name": "Route 1 - Chanda Qila/Wapda Town",
+      "route_id": "route_1",
+      "driver_name": "Muhammad Ali",
+      "driver_phone": "+92 300 1234567",
+      "is_live": false,
+      "status": "stopped",
+      "latitude": 32.0950,
+      "longitude": 74.1985,
+      "speed": 0,
+      "next_stop": "Kangni wala",
+      "occupancy": "Seats Available",
+      "eta_minutes": 0,
+      "last_updated": 1726600000000
+    },
+    "bus_lej_6832": {
+      "bus_id": "bus_lej_6832",
+      "name": "LEJ-6832",
+      "route_name": "Route 2 - Sheikhupura Mor",
+      "route_id": "route_2",
+      "driver_name": "Tariq Mehmood",
+      "driver_phone": "+92 301 9876543",
+      "is_live": false,
+      "status": "stopped",
+      "latitude": 32.2031,
+      "longitude": 74.1970,
+      "speed": 0,
+      "next_stop": "Sialkot bypass",
+      "occupancy": "Seats Available",
+      "eta_minutes": 0,
+      "last_updated": 1726600000000
+    },
+    "bus_gax_4555": {
+      "bus_id": "bus_gax_4555",
+      "name": "GAX-4555",
+      "route_name": "Route 3 - Peoples Colony",
+      "route_id": "route_3",
+      "driver_name": "Asif Bashir",
+      "driver_phone": "+92 302 4567890",
+      "is_live": false,
+      "status": "stopped",
+      "latitude": 32.1550,
+      "longitude": 74.1890,
+      "speed": 0,
+      "next_stop": "Sheranwala Bagh",
+      "occupancy": "Seats Available",
+      "eta_minutes": 0,
+      "last_updated": 1726600000000
+    }
+  }
+}

@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // 1. STUDENTS COLLECTION
+    // ==========================================
+    match /students/{studentId} {
+      // Students can view profiles and perform login lookups
+      allow read: if true;
+
+      // Allow creating or updating student profile with valid schema validation
+      allow create, update: if request.resource.data.email is string
+                            && request.resource.data.email.size() >= 5
+                            && request.resource.data.rollNo is string
+                            && request.resource.data.name is string
+                            && request.resource.data.department is string;
+
+      // Restrict arbitrary deletion of student accounts
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // 2. BUS FLEET & LIVE TRACKING
+    // ==========================================
+    match /buses/{busId} {
+      // Public read so all enrolled students can track buses live
+      allow read: if true;
+
+      // Allow telemetry and status updates
+      allow write: if true;
+    }
+
+    // ==========================================
+    // 3. SECURE OTP COLLECTION (NO PUBLIC READ)
+    // ==========================================
+    match /otps/{otpId} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // 4. DEFAULT SECURITY FALLBACK
+    // ==========================================
+    // Deny access to all other unknown collections by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

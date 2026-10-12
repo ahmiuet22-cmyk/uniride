@@ -1,0 +1,51 @@
+{
+  "rules": {
+    "live_buses": {
+      ".read": true,
+      ".write": true
+    },
+    "buses": {
+      ".read": true,
+      ".write": true
+    },
+    "routes": {
+      ".read": true,
+      ".write": true
+    },
+    "alerts": {
+      ".read": true,
+      ".write": true
+    },
+    "notifications": {
+      ".read": true,
+      ".write": true
+    },
+    "timetables": {
+      ".read": true,
+      ".write": true
+    },
+    "drivers": {
+      ".read": true,
+      ".write": true
+    },
+    "special_shuttles": {
+      ".read": true,
+      ".write": true
+    },
+    "student_otps": {
+      ".read": true,
+      ".write": true,
+      "$email": {
+        ".validate": "newData.hasChildren(['email', 'otp', 'expires_at'])"
+      }
+    },
+    "students": {
+      ".read": true,
+      ".write": true
+    },
+    "students_by_email": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
