@@ -1,7 +1,7 @@
 name: Build iOS Application (UniRide)
 
 on:
-  workflow_dispatch: # Allows manual 1-click trigger from GitHub Actions tab
+  workflow_dispatch:
   push:
     branches: [ main, master ]
   pull_request:
@@ -10,17 +10,11 @@ on:
 jobs:
   build-ios:
     name: Build iOS (IPA)
-    runs-on: macos-14 # Fast Apple Silicon macOS Runner
+    runs-on: macos-14
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
-
-      - name: ☕ Set up Java JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
 
       - name: 🐦 Set up Flutter
         uses: subosito/flutter-action@v2
@@ -28,33 +22,23 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: 🔍 Check Flutter Environment
-        run: flutter doctor -v
-
-      - name: 📦 Install Flutter Dependencies
+      - name: 📦 Get Flutter Dependencies
         run: flutter pub get
 
-      - name: 🍎 Install CocoaPods Dependencies
-        run: |
-          cd ios
-          pod install
-          cd ..
+      - name: 🚀 Build iOS Release (No Codesign)
+        run: flutter build ios --release --no-codesign
 
-      - name: 🚀 Build iOS App (Release No-Codesign)
-        run: |
-          flutter build ios --release --no-codesign
-
-      - name: 📦 Package App into .IPA
+      - name: 📦 Package into IPA
         run: |
           mkdir -p build/ios/ipa/Payload
-          cp -r build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
           cd build/ios/ipa
-          zip -r UniRide_iOS_Release.ipa Payload
+          zip -qr UniRide_iOS.ipa Payload
           cd ../../..
 
       - name: 📤 Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: UniRide-iOS-IPA
-          path: build/ios/ipa/UniRide_iOS_Release.ipa
+          path: build/ios/ipa/UniRide_iOS.ipa
           retention-days: 14
