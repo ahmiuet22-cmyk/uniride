@@ -21,7 +21,24 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 2. BUS FLEET & LIVE TRACKING
+    // 2. FACULTY COLLECTION
+    // ==========================================
+    match /faculty/{facultyId} {
+      // Faculty can view profiles and perform login lookups
+      allow read: if true;
+
+      // Allow creating or updating faculty profile
+      allow create, update: if request.resource.data.email is string
+                            && request.resource.data.email.size() >= 5
+                            && request.resource.data.name is string
+                            && request.resource.data.department is string;
+
+      // Restrict arbitrary deletion of faculty accounts
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // 3. BUS FLEET & LIVE TRACKING
     // ==========================================
     match /buses/{busId} {
       // Public read so all enrolled students can track buses live

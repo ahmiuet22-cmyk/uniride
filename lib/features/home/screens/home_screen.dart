@@ -280,7 +280,7 @@ class HomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 14),
 
-                if (busProvider.isLoading) ...[
+                if (busProvider.isLoading || (allFleetBuses.isEmpty && busProvider.routes.isEmpty)) ...[
                   const SkeletonLoader(width: double.infinity, height: 74),
                   const SizedBox(height: 10),
                   const SkeletonLoader(width: double.infinity, height: 74),

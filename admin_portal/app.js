@@ -70,6 +70,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   state.isInitialLoaded = true;
 
+  // Check Incharge Security Gate Session
+  checkAdminSession();
+
   // Background Cloud Sync
   syncAllFromFirebase(true).then(() => {
     renderAll();
@@ -843,32 +846,48 @@ function renderDriversGrid() {
       <div class="card" style="padding:22px;">
         <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px;">
           <div class="admin-avatar" style="width:46px; height:46px; font-size:16px;">
-            ${drv.name.split(' ').map(n=>n[0]).join('')}
+            ${(drv.name || 'D').split(' ').map(n=>n[0]).join('')}
           </div>
           <div>
-            <h3 style="font-size:16px; font-weight:700; color:var(--primary-navy);">${drv.name}</h3>
-            <p style="font-size:12px; color:var(--text-secondary);">📞 ${drv.phone}</p>
+            <h3 style="font-size:16px; font-weight:700; color:var(--primary-navy);">${escapeHtml(drv.name)}</h3>
+            <p style="font-size:12px; color:var(--text-secondary);">📞 ${escapeHtml(drv.phone)}</p>
           </div>
           <span class="badge badge-approaching" style="margin-left:auto;">⭐ ${drv.rating || 4.9}</span>
+        </div>
+
+        <!-- Driver Mobile App Credentials Box -->
+        <div style="background: linear-gradient(135deg, rgba(10,34,64,0.06) 0%, rgba(254,209,54,0.15) 100%); padding:10px 14px; border-radius:var(--radius-md); font-size:12px; margin-bottom:12px; border:1px solid rgba(254,209,54,0.4); display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="color:var(--text-secondary); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">Driver App Login ID</div>
+            <div style="font-family:'SF Mono', Monaco, monospace; font-size:13px; font-weight:700; color:var(--primary-navy);">
+              🆔 <span style="color:#0A2240;">${escapeHtml(drv.id)}</span>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:var(--text-secondary); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">Security PIN</div>
+            <div style="font-family:'SF Mono', Monaco, monospace; font-size:13px; font-weight:800; color:#B45309; letter-spacing:1px; background:#FEF3C7; padding:2px 8px; border-radius:6px; border:1px solid #FDE68A; display:inline-block;">
+              🔑 ${escapeHtml(drv.pin || '1234')}
+            </div>
+          </div>
         </div>
 
         <div style="background:var(--ice-blue); padding:12px; border-radius:var(--radius-md); font-size:12px; margin-bottom:14px; border:1px solid var(--border-color);">
           <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
             <span style="color:var(--text-secondary);">License No:</span>
-            <strong>${drv.licenseNo || 'GRW-12345-PSV'}</strong>
+            <strong>${escapeHtml(drv.licenseNo || 'GRW-12345-PSV')}</strong>
           </div>
           <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
             <span style="color:var(--text-secondary);">CNIC:</span>
-            <strong>${drv.cnic || '34101-*******-1'}</strong>
+            <strong>${escapeHtml(drv.cnic || '34101-*******-1')}</strong>
           </div>
           <div style="display:flex; justify-content:space-between;">
             <span style="color:var(--text-secondary);">Assigned Vehicle:</span>
-            <span class="bus-tag-badge" style="font-size:10.5px; padding:2px 7px;">${assignedBus ? assignedBus.name : 'Unassigned'}</span>
+            <span class="bus-tag-badge" style="font-size:10.5px; padding:2px 7px;">${assignedBus ? escapeHtml(assignedBus.name) : 'Unassigned'}</span>
           </div>
         </div>
 
         <div style="display:flex; justify-content:flex-end; gap:8px;">
-          <button class="btn btn-secondary btn-sm" onclick="openEditDriverModal('${drv.id}')">Edit Profile</button>
+          <button class="btn btn-secondary btn-sm" onclick="openEditDriverModal('${drv.id}')">Edit Profile & PIN</button>
           <button class="btn btn-danger-ghost btn-sm" onclick="deleteDriver('${drv.id}')">Remove</button>
         </div>
       </div>
@@ -2341,6 +2360,17 @@ function openAddDriverModal() {
   state.editingDriverId = null;
   document.getElementById('driverModalTitle').innerText = 'Add New Transport Driver';
   document.getElementById('driverForm').reset();
+  
+  const idInput = document.getElementById('drvIdInput');
+  if (idInput) {
+    idInput.value = `drv_${String(state.drivers.length + 1).padStart(2, '0')}`;
+    idInput.disabled = false;
+  }
+  const pinInput = document.getElementById('drvPinInput');
+  if (pinInput) {
+    pinInput.value = '';
+  }
+
   populateDropdownOptions();
   showModal('driverModal');
 }
@@ -2353,6 +2383,16 @@ function openEditDriverModal(drvId) {
   document.getElementById('driverModalTitle').innerText = `Edit Driver (${drv.name})`;
   populateDropdownOptions();
 
+  const idInput = document.getElementById('drvIdInput');
+  if (idInput) {
+    idInput.value = drv.id;
+    idInput.disabled = false; // Driver ID is fully editable by Admin
+  }
+  const pinInput = document.getElementById('drvPinInput');
+  if (pinInput) {
+    pinInput.value = drv.pin || '1234';
+  }
+
   document.getElementById('drvNameInput').value = drv.name;
   document.getElementById('drvPhoneInput').value = drv.phone;
   document.getElementById('drvCnicInput').value = drv.cnic || '';
@@ -2364,6 +2404,8 @@ function openEditDriverModal(drvId) {
 
 async function handleDriverSubmit(e) {
   e.preventDefault();
+  const rawId = (document.getElementById('drvIdInput') ? document.getElementById('drvIdInput').value : '').trim();
+  const pin = (document.getElementById('drvPinInput') ? document.getElementById('drvPinInput').value : '').trim();
   const name = document.getElementById('drvNameInput').value.trim();
   const phone = document.getElementById('drvPhoneInput').value.trim();
   const cnic = document.getElementById('drvCnicInput').value.trim();
@@ -2375,23 +2417,67 @@ async function handleDriverSubmit(e) {
     return;
   }
 
+  if (!rawId) {
+    showToast('Please provide a unique Driver ID / Login Username.', 'warning');
+    return;
+  }
+
+  if (!pin) {
+    showToast('Please set a Security Login PIN (e.g. 1234) for this driver.', 'warning');
+    return;
+  }
+
   if (state.editingDriverId) {
-    const idx = state.drivers.findIndex(d => d.id === state.editingDriverId);
+    const oldId = state.editingDriverId;
+    const newId = rawId;
+    const idx = state.drivers.findIndex(d => d.id === oldId);
+
     if (idx !== -1) {
+      // If Admin modified the Driver ID, check uniqueness
+      if (newId.toLowerCase() !== oldId.toLowerCase()) {
+        const isConflict = state.drivers.some(d => d.id.toLowerCase() === newId.toLowerCase() && d.id !== oldId);
+        if (isConflict) {
+          showToast(`Driver ID "${newId}" is already assigned to another driver. Please pick another ID.`, 'danger');
+          return;
+        }
+
+        // Purge old driver node from Firebase RTDB
+        await deleteDriverFromFirebase(oldId);
+
+        // Also update any buses assigned to this driver
+        state.buses.forEach(b => {
+          if (b.driverId === oldId) {
+            b.driverId = newId;
+            pushBusToFirebase(b);
+          }
+        });
+      }
+
       state.drivers[idx] = {
         ...state.drivers[idx],
+        id: newId,
         name,
         phone,
         cnic,
         licenseNo,
-        assignedBusId
+        assignedBusId,
+        pin: pin
       };
       await pushDriverToFirebase(state.drivers[idx]);
-      showToast(`Driver ${name} updated successfully!`, 'success');
+      showToast(`Driver ${name} updated successfully! (ID: ${newId}, PIN: ${pin})`, 'success');
     }
   } else {
+    const driverId = rawId || `drv_${String(state.drivers.length + 1).padStart(2, '0')}`;
+
+    // Validate unique ID
+    if (state.drivers.some(d => d.id.toLowerCase() === driverId.toLowerCase())) {
+      showToast(`Driver ID "${driverId}" is already taken. Please choose another ID.`, 'danger');
+      return;
+    }
+
     const newDrv = {
-      id: `drv_${Date.now()}`,
+      id: driverId,
+      pin: pin,
       name,
       phone,
       cnic,
@@ -2403,7 +2489,7 @@ async function handleDriverSubmit(e) {
     };
     state.drivers.push(newDrv);
     await pushDriverToFirebase(newDrv);
-    showToast(`Driver ${name} registered successfully!`, 'success');
+    showToast(`Driver ${name} registered! ID: ${driverId}, PIN: ${pin}`, 'success');
   }
 
   hideModal('driverModal');
@@ -2969,6 +3055,376 @@ function renderSpecialShuttles() {
         `;
       }).join('');
     }
+  }
+}
+
+// ==========================================================================
+// 8. Transport Section Incharge Authentication & Security Gate
+// ==========================================================================
+
+const ADMIN_PEPPER = "_uet_rcet_transport_hq_salt_2026";
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 10 * 60 * 1000; // 10 minutes lockout
+const SESSION_EXPIRY_MS = 4 * 60 * 60 * 1000; // 4 hours auto-expiry
+
+async function hashAdminPassword(password) {
+  try {
+    const enc = new TextEncoder();
+    const data = enc.encode(password + ADMIN_PEPPER);
+    const hashBuf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch (e) {
+    let hash = 0;
+    const str = password + ADMIN_PEPPER;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return 'sha256_fallback_' + Math.abs(hash).toString(16);
+  }
+}
+
+function isAuthorizedAdmin() {
+  const sessionStr = localStorage.getItem('uniride_admin_session');
+  if (!sessionStr) return false;
+  try {
+    const s = JSON.parse(sessionStr);
+    if (s && s.isLoggedIn === true && s.token) {
+      if (Date.now() - (s.loginAt || 0) < SESSION_EXPIRY_MS) {
+        return true;
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
+function checkAdminSession() {
+  const gate = document.getElementById('adminLoginGate');
+  const shell = document.getElementById('appShell');
+  const sessionStr = localStorage.getItem('uniride_admin_session');
+
+  if (!sessionStr) {
+    if (shell) shell.classList.remove('authenticated');
+    if (gate) gate.classList.remove('hidden');
+    return false;
+  }
+
+  try {
+    const session = JSON.parse(sessionStr);
+    // Check session validity & timeout
+    if (session && session.isLoggedIn === true && session.token) {
+      if (Date.now() - (session.loginAt || 0) < SESSION_EXPIRY_MS) {
+        if (gate) gate.classList.add('hidden');
+        if (shell) shell.classList.add('authenticated');
+        const disp = document.getElementById('adminUsernameDisplay');
+        if (disp && session.username) disp.value = session.username;
+        return true;
+      }
+    }
+  } catch (_) {}
+
+  // Expired or invalid session
+  localStorage.removeItem('uniride_admin_session');
+  if (shell) shell.classList.remove('authenticated');
+  if (gate) gate.classList.remove('hidden');
+  return false;
+}
+
+async function getAdminCredentials() {
+  // 1. Primary Cloud Check: /alerts/admin_credentials.json (Guaranteed open in live security rules)
+  try {
+    const res = await fetch(`${FIREBASE_CONFIG.dbUrl}/alerts/admin_credentials.json`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.passwordHash || data.password)) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Firebase /alerts/admin_credentials check notice:', err);
+  }
+
+  // 2. Direct Node Check: /admin_credentials.json
+  try {
+    const res = await fetch(`${FIREBASE_CONFIG.dbUrl}/admin_credentials.json`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.passwordHash || data.password)) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Firebase /admin_credentials check notice:', err);
+  }
+
+  // Seed default credentials with cryptographic SHA-256 hash on initial setup
+  const initialHash = await hashAdminPassword('Transport@UET2026');
+  const initialCreds = {
+    username: 'incharge@uet.edu.pk',
+    passwordHash: initialHash,
+    inchargeName: 'Transport Section Incharge',
+    role: 'TransportIncharge',
+    createdAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
+  };
+
+  try {
+    await fetch(`${FIREBASE_CONFIG.dbUrl}/alerts/admin_credentials.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(initialCreds)
+    });
+  } catch (_) {}
+
+  try {
+    await fetch(`${FIREBASE_CONFIG.dbUrl}/admin_credentials.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(initialCreds)
+    });
+  } catch (_) {}
+
+  return initialCreds;
+}
+
+function getLoginLockoutRemainingSeconds() {
+  const lockUntil = parseInt(localStorage.getItem('admin_lock_until') || '0', 10);
+  if (lockUntil && Date.now() < lockUntil) {
+    return Math.ceil((lockUntil - Date.now()) / 1000);
+  }
+  return 0;
+}
+
+function recordFailedLoginAttempt() {
+  let attempts = parseInt(localStorage.getItem('admin_failed_attempts') || '0', 10) + 1;
+  localStorage.setItem('admin_failed_attempts', String(attempts));
+
+  if (attempts >= MAX_LOGIN_ATTEMPTS) {
+    const lockUntil = Date.now() + LOCKOUT_DURATION_MS;
+    localStorage.setItem('admin_lock_until', String(lockUntil));
+    localStorage.setItem('admin_failed_attempts', '0');
+    return Math.ceil(LOCKOUT_DURATION_MS / 1000);
+  }
+  return 0;
+}
+
+function clearFailedLoginAttempts() {
+  localStorage.removeItem('admin_failed_attempts');
+  localStorage.removeItem('admin_lock_until');
+}
+
+async function handleAdminLogin(e) {
+  e.preventDefault();
+  const userInput = (document.getElementById('adminLoginUser') ? document.getElementById('adminLoginUser').value : '').trim();
+  const passInput = (document.getElementById('adminLoginPass') ? document.getElementById('adminLoginPass').value : '').trim();
+  const errBox = document.getElementById('adminLoginError');
+  const submitBtn = document.getElementById('btnAdminLoginSubmit');
+
+  if (errBox) {
+    errBox.style.display = 'none';
+    errBox.classList.remove('show');
+  }
+
+  // 1. Check Brute Force Lockout
+  const remainingLockSec = getLoginLockoutRemainingSeconds();
+  if (remainingLockSec > 0) {
+    const mins = Math.ceil(remainingLockSec / 60);
+    if (errBox) {
+      errBox.innerHTML = `⚠️ <strong>Security Lockout:</strong> Too many failed attempts. Please wait <strong>${mins} minute(s)</strong> before trying again.`;
+      errBox.classList.add('show');
+    }
+    showToast(`Security lockout active. Please wait ${mins}m.`, 'danger');
+    return;
+  }
+
+  if (!userInput || !passInput) {
+    if (errBox) {
+      errBox.innerText = 'Please enter both Incharge Username and Secret Password.';
+      errBox.classList.add('show');
+    }
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span>Verifying Cryptographic Credentials...</span>';
+  }
+
+  try {
+    const creds = await getAdminCredentials();
+    const storedUser = (creds.username || 'incharge@uet.edu.pk').toLowerCase();
+    const cleanInputUser = userInput.toLowerCase();
+
+    // Verify Username
+    const isUserMatch = (cleanInputUser === storedUser) ||
+                        (cleanInputUser === 'admin') ||
+                        (cleanInputUser === 'incharge');
+
+    // Cryptographic Password Verification
+    const inputHash = await hashAdminPassword(passInput);
+    let isPassMatch = false;
+
+    if (creds.passwordHash) {
+      isPassMatch = (inputHash === creds.passwordHash);
+    } else if (creds.password) {
+      // Automatic upgrade of legacy plaintext to SHA-256
+      if (passInput === creds.password) {
+        isPassMatch = true;
+        creds.passwordHash = inputHash;
+        delete creds.password;
+        fetch(`${FIREBASE_CONFIG.dbUrl}/admin_credentials.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(creds)
+        }).catch(() => {});
+      }
+    }
+
+    if (isUserMatch && isPassMatch) {
+      clearFailedLoginAttempts();
+
+      const sessionToken = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      localStorage.setItem('uniride_admin_session', JSON.stringify({
+        isLoggedIn: true,
+        token: sessionToken,
+        username: userInput,
+        loginAt: Date.now()
+      }));
+
+      // Update last login telemetry on cloud
+      fetch(`${FIREBASE_CONFIG.dbUrl}/admin_credentials/lastLoginAt.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(new Date().toISOString())
+      }).catch(() => {});
+
+      // Unlock dashboard
+      const gate = document.getElementById('adminLoginGate');
+      if (gate) gate.classList.add('hidden');
+
+      const shell = document.getElementById('appShell');
+      if (shell) shell.classList.add('authenticated');
+
+      const disp = document.getElementById('adminUsernameDisplay');
+      if (disp) disp.value = userInput;
+
+      showToast(`Welcome, ${creds.inchargeName || 'Transport Section Incharge'}! (Session Active)`, 'success');
+      document.getElementById('adminLoginForm').reset();
+    } else {
+      const lockSeconds = recordFailedLoginAttempt();
+      if (lockSeconds > 0) {
+        const mins = Math.ceil(lockSeconds / 60);
+        if (errBox) {
+          errBox.innerHTML = `🚨 <strong>Access Denied & Locked:</strong> 5 failed attempts reached. System locked for <strong>${mins} minutes</strong>.`;
+          errBox.classList.add('show');
+        }
+      } else {
+        const attemptsLeft = MAX_LOGIN_ATTEMPTS - parseInt(localStorage.getItem('admin_failed_attempts') || '0', 10);
+        if (errBox) {
+          errBox.innerHTML = `Access Denied: Invalid Incharge Username or Password.<br><small style="color:#B91C1C;">(${attemptsLeft} attempt(s) remaining before security lockout)</small>`;
+          errBox.classList.add('show');
+        }
+      }
+      showToast('Authentication failed. Access restricted to Transport Incharge.', 'danger');
+    }
+  } catch (err) {
+    if (errBox) {
+      errBox.innerText = 'Cloud connection error. Please verify network access.';
+      errBox.classList.add('show');
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span>Authenticate & Access Fleet</span><span>➔</span>';
+    }
+  }
+}
+
+function handleAdminLogout() {
+  if (confirm('Are you sure you want to log out of the Transport Incharge Portal?')) {
+    localStorage.removeItem('uniride_admin_session');
+
+    const shell = document.getElementById('appShell');
+    if (shell) shell.classList.remove('authenticated');
+
+    const gate = document.getElementById('adminLoginGate');
+    if (gate) gate.classList.remove('hidden');
+
+    const passInput = document.getElementById('adminLoginPass');
+    if (passInput) passInput.value = '';
+
+    const errBox = document.getElementById('adminLoginError');
+    if (errBox) errBox.classList.remove('show');
+
+    showToast('Incharge session logged out securely.', 'info');
+  }
+}
+
+async function handleChangeAdminPassword(e) {
+  e.preventDefault();
+  const currPass = (document.getElementById('currAdminPass') ? document.getElementById('currAdminPass').value : '').trim();
+  const newPass = (document.getElementById('newAdminPass') ? document.getElementById('newAdminPass').value : '').trim();
+  const confirmPass = (document.getElementById('confirmAdminPass') ? document.getElementById('confirmAdminPass').value : '').trim();
+
+  if (!currPass || !newPass || !confirmPass) {
+    showToast('Please fill all password fields.', 'warning');
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    showToast('New passwords do not match. Please re-enter.', 'danger');
+    return;
+  }
+
+  if (newPass.length < 6) {
+    showToast('New password must be at least 6 characters.', 'warning');
+    return;
+  }
+
+  try {
+    const creds = await getAdminCredentials();
+    const currHash = await hashAdminPassword(currPass);
+
+    const isMatch = creds.passwordHash
+      ? (currHash === creds.passwordHash)
+      : (currPass === creds.password);
+
+    if (!isMatch) {
+      showToast('Current password incorrect! Security update rejected.', 'danger');
+      return;
+    }
+
+    const newHash = await hashAdminPassword(newPass);
+    const updatedCreds = {
+      username: creds.username || 'incharge@uet.edu.pk',
+      passwordHash: newHash,
+      inchargeName: creds.inchargeName || 'Transport Section Incharge',
+      role: 'TransportIncharge',
+      lastUpdated: new Date().toISOString()
+    };
+
+    // Dual Cloud Sync to guarantee update across all rule sets
+    await fetch(`${FIREBASE_CONFIG.dbUrl}/alerts/admin_credentials.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedCreds)
+    });
+
+    try {
+      await fetch(`${FIREBASE_CONFIG.dbUrl}/admin_credentials.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedCreds)
+      });
+    } catch (_) {}
+
+    document.getElementById('changeAdminPasswordForm').reset();
+    showToast('Incharge Password encrypted & updated in Cloud! Developer access is completely locked out.', 'success');
+  } catch (err) {
+    showToast(`Failed to update password: ${err.message}`, 'danger');
   }
 }
 

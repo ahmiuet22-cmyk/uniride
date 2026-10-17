@@ -45,6 +45,8 @@ class FirebaseRealtimeTrackingService {
   Stream<List<SpecialShuttleModel>> get specialShuttlesStream => _specialShuttlesController.stream;
 
   bool _isListening = false;
+  String? _lastRoutesJsonHash;
+  List<RouteModel>? _cachedRoutesList;
 
   /// Update the Firebase Realtime Database endpoint at runtime if needed
   static void setDatabaseUrl(String newUrl) {
@@ -118,13 +120,18 @@ class FirebaseRealtimeTrackingService {
     }
   }
 
-  /// Read snapshot of all routes from Firebase (with road snapped polylines)
-  Future<List<RouteModel>?> fetchRoutesFromFirebase() async {
+  /// Read snapshot of all routes from Firebase (with road snapped polylines and smart memory caching)
+  Future<List<RouteModel>?> fetchRoutesFromFirebase({bool forceRefresh = false}) async {
     try {
       final endpoint = Uri.parse('$resolvedUrl/routes.json');
       final response = await _client.get(endpoint).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200 && response.body != 'null') {
+        // Bandwidth & CPU Optimizer: Return cached routes if server payload hasn't changed
+        if (!forceRefresh && _cachedRoutesList != null && _lastRoutesJsonHash == response.body) {
+          return _cachedRoutesList;
+        }
+
         final decoded = jsonDecode(response.body);
         final List<RouteModel> parsedRoutes = [];
 
@@ -161,12 +168,14 @@ class FirebaseRealtimeTrackingService {
               completeRoutes.add(r);
             }
           }
+          _lastRoutesJsonHash = response.body;
+          _cachedRoutesList = completeRoutes;
           return completeRoutes;
         }
       }
-      return null;
+      return _cachedRoutesList;
     } catch (_) {
-      return null;
+      return _cachedRoutesList;
     }
   }
 
@@ -283,40 +292,46 @@ class FirebaseRealtimeTrackingService {
   }
 
   /// Start periodic background polling stream for real-time synchronization
-  void startListening({Duration interval = const Duration(seconds: 3)}) {
+  void startListening({Duration interval = const Duration(seconds: 4)}) {
     if (_isListening) return;
     _isListening = true;
 
-    // Immediate initial sync upon startup
+    // Immediate initial sync upon startup (routes, buses, alerts, shuttles)
     _syncOnce();
 
     _pollingTimer?.cancel();
     int tickCounter = 0;
     _pollingTimer = Timer.periodic(interval, (_) async {
       tickCounter++;
-      // Live buses polled every 3s
+
+      // 1. Live buses polled every 4s (ensures real-time speed & smooth position updates)
       final liveData = await fetchAllLiveBusesFromFirebase();
       if (liveData != null && !_liveUpdatesController.isClosed) {
         _liveUpdatesController.add(liveData);
       }
 
-      // Routes & Alerts polled every 6s (every 2nd tick)
-      if (tickCounter % 2 == 0) {
-        final routesData = await fetchRoutesFromFirebase();
-        if (routesData != null && !_routesUpdatesController.isClosed) {
-          _routesUpdatesController.add(routesData);
-        }
-
+      // 2. Broadcast Alerts & Special Shuttles polled every 20s (every 5th tick)
+      // Highly responsive for campus announcements without burning quota
+      if (tickCounter % 5 == 0) {
         final alertsData = await fetchAlertsFromFirebase();
         if (alertsData != null && !_alertsUpdatesController.isClosed) {
           _alertsUpdatesController.add(alertsData);
         }
 
-      // Special Shuttles polled every tick (3s) for instant sync
-      final specialData = await fetchSpecialShuttlesFromFirebase();
-      if (specialData != null && !_specialShuttlesController.isClosed) {
-        _specialShuttlesController.add(specialData);
+        final specialData = await fetchSpecialShuttlesFromFirebase();
+        if (specialData != null && !_specialShuttlesController.isClosed) {
+          _specialShuttlesController.add(specialData);
+        }
       }
+
+      // 3. Heavy Route Polylines polled every 2 minutes (every 30th tick)
+      // Routes are static geometry; initial fetch is already completed at startup.
+      // This saves 95% of bandwidth for hundreds of concurrent students!
+      if (tickCounter % 30 == 0) {
+        final routesData = await fetchRoutesFromFirebase();
+        if (routesData != null && !_routesUpdatesController.isClosed) {
+          _routesUpdatesController.add(routesData);
+        }
       }
     });
   }

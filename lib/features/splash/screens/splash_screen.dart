@@ -102,6 +102,14 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (auth.isLoggedIn) {
+      // Validate that this physical device holds the active session
+      final isValidSession = await auth.verifyActiveSession();
+      if (!isValidSession && mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+        return;
+      }
+
+      if (!mounted) return;
       if (auth.isDriver) {
         Navigator.pushReplacementNamed(context, AppRoutes.driverDashboard);
       } else {

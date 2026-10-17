@@ -125,6 +125,7 @@ const INITIAL_DRIVERS = [
     licenseNo: "GRW-78921-PSV",
     rating: 4.9,
     assignedBusId: "bus_gau_2555",
+    pin: "1234",
     status: "Active",
     experienceYears: 12
   },
@@ -136,6 +137,7 @@ const INITIAL_DRIVERS = [
     licenseNo: "GRW-44512-PSV",
     rating: 4.8,
     assignedBusId: "bus_lej_6832",
+    pin: "2555",
     status: "Active",
     experienceYears: 9
   },
@@ -147,6 +149,7 @@ const INITIAL_DRIVERS = [
     licenseNo: "LHR-88219-PSV",
     rating: 4.7,
     assignedBusId: "bus_gax_4555",
+    pin: "4555",
     status: "Active",
     experienceYears: 7
   },
@@ -158,6 +161,7 @@ const INITIAL_DRIVERS = [
     licenseNo: "GRW-11029-PSV",
     rating: 4.9,
     assignedBusId: "bus_lwn_3033",
+    pin: "3033",
     status: "Active",
     experienceYears: 14
   },
@@ -169,6 +173,7 @@ const INITIAL_DRIVERS = [
     licenseNo: "SKT-99302-PSV",
     rating: 4.8,
     assignedBusId: "bus_lea_6834",
+    pin: "6834",
     status: "Active",
     experienceYears: 6
   }

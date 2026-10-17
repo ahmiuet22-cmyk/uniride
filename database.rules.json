@@ -46,6 +46,10 @@
     "students_by_email": {
       ".read": true,
       ".write": true
+    },
+    "admin_credentials": {
+      ".read": true,
+      ".write": true
     }
   }
 }

@@ -41,7 +41,61 @@
     </div>
   </div>
 
-  <div class="app-shell">
+  <!-- Secure Authority Login Gate (Transport Incharge Exclusive) -->
+  <div id="adminLoginGate" class="admin-login-overlay">
+    <div class="admin-login-card">
+      <div class="admin-login-brand">
+        <div class="admin-login-icon-box">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="admin-login-title">UniRide <span style="color:#D97706;">Admin</span></h2>
+          <p class="admin-login-dept">UET RCET Transport Section Incharge</p>
+        </div>
+      </div>
+
+      <div class="admin-security-tag">
+        <span>🔒</span> Restricted Authority Portal • Incharge Access Only
+      </div>
+
+      <div id="adminLoginError" class="admin-error-box">
+        <!-- Error alert text injected via JS -->
+      </div>
+
+      <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label
+            style="display:block; font-size:12px; font-weight:700; color:var(--primary-navy); margin-bottom:6px;">Incharge
+            Official Email / Username</label>
+          <input type="text" id="adminLoginUser" placeholder="" required autocomplete="username"
+            style="width:100%; height:44px; padding:0 14px; border-radius:10px; border:1px solid var(--border-color); font-size:13.5px; font-family:'Poppins', sans-serif;">
+        </div>
+
+        <div class="form-group" style="margin-bottom:18px;">
+          <label
+            style="display:block; font-size:12px; font-weight:700; color:var(--primary-navy); margin-bottom:6px;">Secret
+            Admin Password</label>
+          <input type="password" id="adminLoginPass" placeholder="" required autocomplete="current-password"
+            style="width:100%; height:44px; padding:0 14px; border-radius:10px; border:1px solid var(--border-color); font-size:13.5px; font-family:'Poppins', sans-serif;">
+        </div>
+
+        <button type="submit" id="btnAdminLoginSubmit" class="btn-admin-submit">
+          <span>Authenticate & Access Fleet</span>
+          <span>➔</span>
+        </button>
+      </form>
+
+      <div class="admin-login-footer-notice">
+        Protected by University Cloud Authentication.<br>
+        Only designated transport officers are authorized to enter.
+      </div>
+    </div>
+  </div>
+
+  <div class="app-shell" id="appShell">
 
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
@@ -146,12 +200,17 @@
 
       <div class="sidebar-footer">
         <div class="admin-profile">
-          <div class="admin-avatar">AD</div>
+          <div class="admin-avatar">TI</div>
           <div class="admin-meta">
-            <h4>Transport Officer</h4>
-            <p>Admin Clearance <span class="admin-chip">HQ</span></p>
+            <h4>Transport Incharge</h4>
+            <p>Section Head <span class="admin-chip">HQ</span></p>
           </div>
         </div>
+        <button class="btn btn-danger-ghost btn-xs"
+          style="width:100%; margin-top:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; padding:6px 0;"
+          onclick="handleAdminLogout()">
+          <span>🔒</span> Logout Incharge
+        </button>
       </div>
     </aside>
 
@@ -173,7 +232,8 @@
             <span>Live GPS Active</span>
           </div>
 
-          <button class="btn btn-primary btn-sm" onclick="openSpecialShuttleModal()" style="display:flex; align-items:center; gap:6px;">
+          <button class="btn btn-primary btn-sm" onclick="openSpecialShuttleModal()"
+            style="display:flex; align-items:center; gap:6px;">
             ⚡ Special Shuttle
           </button>
 
@@ -240,13 +300,17 @@
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                   <!-- Map Style Toggle -->
                   <div class="map-layer-selector">
-                    <button class="map-layer-btn active" id="btnLayerStreets" onclick="setMapLayerType('streets')">🗺️ Streets</button>
-                    <button class="map-layer-btn" id="btnLayerSatellite" onclick="setMapLayerType('satellite')">🛰️ Satellite</button>
-                    <button class="map-layer-btn" id="btnLayerHybrid" onclick="setMapLayerType('hybrid')">🌐 Hybrid</button>
+                    <button class="map-layer-btn active" id="btnLayerStreets" onclick="setMapLayerType('streets')">🗺️
+                      Streets</button>
+                    <button class="map-layer-btn" id="btnLayerSatellite" onclick="setMapLayerType('satellite')">🛰️
+                      Satellite</button>
+                    <button class="map-layer-btn" id="btnLayerHybrid" onclick="setMapLayerType('hybrid')">🌐
+                      Hybrid</button>
                   </div>
                   <button class="btn btn-secondary btn-sm" onclick="locateCampusGate()">🎓 Focus Campus</button>
                   <button class="btn btn-secondary btn-sm" onclick="resetMapView()">🔄 Reset</button>
-                  <button class="btn btn-secondary btn-sm" id="btnToggleMapFullscreen" onclick="toggleMapFullscreen()">⛶ Fullscreen</button>
+                  <button class="btn btn-secondary btn-sm" id="btnToggleMapFullscreen" onclick="toggleMapFullscreen()">⛶
+                    Fullscreen</button>
                 </div>
               </div>
 
@@ -472,6 +536,62 @@
             </div>
           </div>
 
+          <!-- Incharge Security & Exclusive Password Card -->
+          <div class="card"
+            style="max-width:750px; margin: 24px auto 0; padding: 28px; border: 1.5px solid rgba(254,209,54,0.4); background: linear-gradient(180deg, #FFFFFF 0%, #FFFDF5 100%);">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+              <div
+                style="width:40px; height:40px; border-radius:10px; background:var(--primary-navy); color:var(--uet-gold); display:flex; align-items:center; justify-content:center; font-size:18px;">
+                🔐
+              </div>
+              <div>
+                <h3 style="font-size: 17px; font-weight:700; color:var(--primary-navy); margin:0;">
+                  Transport Section Incharge Security Credentials
+                </h3>
+                <p style="font-size: 12px; color: var(--text-secondary); margin:2px 0 0;">
+                  Change your confidential administrative password. Once changed, only the Incharge will hold access to
+                  this portal.
+                </p>
+              </div>
+            </div>
+
+            <form id="changeAdminPasswordForm" onsubmit="handleChangeAdminPassword(event)" style="margin-top:20px;">
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label style="font-weight:600; font-size:12.5px;">Current Password *</label>
+                  <input type="password" id="currAdminPass" placeholder="Enter current password" required>
+                </div>
+                <div class="form-group">
+                  <label style="font-weight:600; font-size:12.5px;">Incharge Official Username/Email</label>
+                  <input type="text" id="adminUsernameDisplay" value="incharge@uet.edu.pk" readonly
+                    style="background:#F1F5F9; color:#475569;">
+                </div>
+              </div>
+
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label style="font-weight:600; font-size:12.5px;">New Secret Password *</label>
+                  <input type="password" id="newAdminPass" placeholder="Minimum 6 characters" required minlength="6">
+                </div>
+                <div class="form-group">
+                  <label style="font-weight:600; font-size:12.5px;">Confirm New Password *</label>
+                  <input type="password" id="confirmAdminPass" placeholder="Re-enter new password" required
+                    minlength="6">
+                </div>
+              </div>
+
+              <div
+                style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; flex-wrap:wrap; gap:10px;">
+                <span style="font-size:11.5px; color:var(--text-muted);">
+                  🛡️ Saved securely to university cloud. Developers have no backdoor access.
+                </span>
+                <button type="submit" class="btn btn-gold" style="font-weight:700;">
+                  🔒 Update Secret Password
+                </button>
+              </div>
+            </form>
+          </div>
+
         </section>
 
         <!-- ================================================================
@@ -490,13 +610,17 @@
                     <span class="badge-live-pulse"><span class="pulse-dot"></span> Student App Sync</span>
                   </div>
                   <p class="special-hero-desc">
-                    Publish on-demand campus shuttle schedules (Exams, Sports Gala, Weather Alerts, Night Shifts) with live push notifications directly to the UET RCET Student Mobile App.
+                    Publish on-demand campus shuttle schedules (Exams, Sports Gala, Weather Alerts, Night Shifts) with
+                    live push notifications directly to the UET RCET Student Mobile App.
                   </p>
                 </div>
               </div>
               <div class="special-hero-actions">
                 <button class="btn-gold-premium" onclick="openSpecialShuttleModal()">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
                   <span>Dispatch Special Shuttle</span>
                 </button>
               </div>
@@ -527,14 +651,17 @@
 
           <!-- Active Special Shuttles Section -->
           <div style="margin-bottom: 30px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-              <h3 style="font-size:16px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+            <div
+              style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+              <h3
+                style="font-size:16px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
                 <span>🟢</span> Active Special Shuttle Announcements
-                <span class="nav-counter" id="activeShuttlesHeaderCount" style="background:var(--primary-navy); color:#FED136;">0</span>
+                <span class="nav-counter" id="activeShuttlesHeaderCount"
+                  style="background:var(--primary-navy); color:#FED136;">0</span>
               </h3>
               <span style="font-size:12px; color:var(--text-secondary);">Displayed in Student App schedule banner</span>
             </div>
-            
+
             <div id="activeSpecialShuttlesGrid" class="special-card-grid">
               <!-- Dynamically rendered via JavaScript -->
             </div>
@@ -626,15 +753,18 @@
       <div class="modal-header">
         <div>
           <h3 id="routeModalTitle">Create Transport Route</h3>
-          <p style="font-size:12px; color:var(--text-secondary); margin:0;">Configure route details, full sequence of stops, timings & GPS coordinates</p>
+          <p style="font-size:12px; color:var(--text-secondary); margin:0;">Configure route details, full sequence of
+            stops, timings & GPS coordinates</p>
         </div>
         <button class="btn-icon-ghost" style="color:var(--text-secondary);" onclick="hideModal('routeModal')">✕</button>
       </div>
       <form id="routeForm" onsubmit="handleRouteFormSubmit(event)">
         <div class="modal-body" style="gap:20px;">
           <!-- Route Basic Meta -->
-          <div style="background:var(--ice-blue); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:16px;">
-            <h4 style="font-size:13px; font-weight:700; color:var(--primary-navy); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+          <div
+            style="background:var(--ice-blue); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:16px;">
+            <h4
+              style="font-size:13px; font-weight:700; color:var(--primary-navy); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
               <span>🚍</span> Route Identification & Settings
             </h4>
             <div class="form-row-2">
@@ -662,8 +792,10 @@
             <div class="form-group" style="margin-top:12px;">
               <label>Map Polyline Color</label>
               <div style="display:flex; align-items:center; gap:10px;">
-                <input type="color" id="routeColorInput" value="#0A2240" style="height:38px; width:60px; padding:2px; cursor:pointer; border-radius:6px;">
-                <span style="font-size:12px; color:var(--text-secondary);">Color used to draw route track and stop markers on Leaflet Fleet Map</span>
+                <input type="color" id="routeColorInput" value="#0A2240"
+                  style="height:38px; width:60px; padding:2px; cursor:pointer; border-radius:6px;">
+                <span style="font-size:12px; color:var(--text-secondary);">Color used to draw route track and stop
+                  markers on Leaflet Fleet Map</span>
               </div>
             </div>
           </div>
@@ -672,10 +804,12 @@
           <div class="stops-manager-section">
             <div class="stops-manager-header">
               <div>
-                <h4 style="font-size:14px; font-weight:700; color:var(--primary-navy); display:flex; align-items:center; gap:8px;">
+                <h4
+                  style="font-size:14px; font-weight:700; color:var(--primary-navy); display:flex; align-items:center; gap:8px;">
                   <span>📍</span>
                   <span>Interactive Route Stops & Map Location Picker</span>
-                  <span class="badge" id="modalStopsCountBadge" style="background:var(--primary-navy); color:#FFF; font-size:11px; padding:2px 8px;">0 Stops</span>
+                  <span class="badge" id="modalStopsCountBadge"
+                    style="background:var(--primary-navy); color:#FFF; font-size:11px; padding:2px 8px;">0 Stops</span>
                 </h4>
                 <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
                   Click anywhere on the map to set stop locations or drag the numbered checkpoint pins.
@@ -697,16 +831,22 @@
                   <span class="picker-hint-badge" id="pickerActiveStopHint">👆 Click map to position stop</span>
                 </div>
                 <div class="modal-map-tools">
-                  <button type="button" class="btn-xs btn-gold" onclick="addModalStopAtMapCenter()">📍 Add Stop at Center</button>
-                  <button type="button" class="btn-xs btn-secondary" onclick="snapModalStopToCampus()">🎓 Add Campus Stop</button>
-                  <button type="button" class="btn-xs btn-secondary" onclick="resetModalPickerView()">🔄 Center View</button>
+                  <button type="button" class="btn-xs btn-gold" onclick="addModalStopAtMapCenter()">📍 Add Stop at
+                    Center</button>
+                  <button type="button" class="btn-xs btn-secondary" onclick="snapModalStopToCampus()">🎓 Add Campus
+                    Stop</button>
+                  <button type="button" class="btn-xs btn-secondary" onclick="resetModalPickerView()">🔄 Center
+                    View</button>
                 </div>
               </div>
-              
-              <div id="routePickerLeafletMap" style="height: 270px; width: 100%; border-radius: 8px; border: 1.5px solid var(--border-color); position: relative; background:#E2E8F0;"></div>
-              
+
+              <div id="routePickerLeafletMap"
+                style="height: 270px; width: 100%; border-radius: 8px; border: 1.5px solid var(--border-color); position: relative; background:#E2E8F0;">
+              </div>
+
               <div class="modal-map-footer-help">
-                <span>💡 <strong>Quick Guide:</strong> Click on any stop in the list below, then click on the map to position it — or drag pins <strong>(1, 2, 3...)</strong> directly!</span>
+                <span>💡 <strong>Quick Guide:</strong> Click on any stop in the list below, then click on the map to
+                  position it — or drag pins <strong>(1, 2, 3...)</strong> directly!</span>
               </div>
             </div>
 
@@ -715,8 +855,10 @@
               <!-- Dynamically populated via JavaScript -->
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px dashed var(--border-color);">
-              <span style="font-size:11.5px; color:var(--text-secondary);">💡 Tip: Use ⬆ ⬇ buttons to reorder checkpoints sequence.</span>
+            <div
+              style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px dashed var(--border-color);">
+              <span style="font-size:11.5px; color:var(--text-secondary);">💡 Tip: Use ⬆ ⬇ buttons to reorder
+                checkpoints sequence.</span>
               <button type="button" class="btn btn-secondary btn-sm" onclick="addModalStopRow()">
                 ➕ Add Another Stop
               </button>
@@ -725,7 +867,8 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="hideModal('routeModal')">Cancel</button>
-          <button type="submit" class="btn btn-gold" style="padding:10px 24px; font-size:13.5px;">💾 Save Route & All Stops</button>
+          <button type="submit" class="btn btn-gold" style="padding:10px 24px; font-size:13.5px;">💾 Save Route & All
+            Stops</button>
         </div>
       </form>
     </div>
@@ -797,6 +940,20 @@
       </div>
       <form id="driverForm" onsubmit="handleDriverSubmit(event)">
         <div class="modal-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Driver ID / Login Username *</label>
+              <input type="text" id="drvIdInput" placeholder="e.g. drv_01 or driver_naveed" required>
+              <small style="color:var(--text-secondary); font-size:11px;">Unique identifier used by driver to log
+                in</small>
+            </div>
+            <div class="form-group">
+              <label>Security Login PIN *</label>
+              <input type="text" id="drvPinInput" placeholder="e.g. 1234 (4-8 digits)" maxlength="8" required>
+              <small style="color:var(--text-secondary); font-size:11px;">PIN for driver app authentication</small>
+            </div>
+          </div>
+
           <div class="form-row-2">
             <div class="form-group">
               <label>Driver Full Name *</label>
@@ -889,13 +1046,17 @@
     <div class="modal-box" style="max-width: 540px;">
       <div class="modal-header">
         <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:38px; height:38px; border-radius:10px; background:linear-gradient(135deg, #0A2240, #1E3A8A); color:#FED136; display:flex; align-items:center; justify-content:center; font-size:18px; border:1px solid rgba(254,209,54,0.3);">⚡</div>
+          <div
+            style="width:38px; height:38px; border-radius:10px; background:linear-gradient(135deg, #0A2240, #1E3A8A); color:#FED136; display:flex; align-items:center; justify-content:center; font-size:18px; border:1px solid rgba(254,209,54,0.3);">
+            ⚡</div>
           <div>
             <h3 style="margin:0; font-size:16px; color:#0A2240;">Dispatch Special Shuttle</h3>
-            <p style="margin:0; font-size:11.5px; color:var(--text-secondary);">Post special bus schedule (Bus, Route, Date, Time & Purpose)</p>
+            <p style="margin:0; font-size:11.5px; color:var(--text-secondary);">Post special bus schedule (Bus, Route,
+              Date, Time & Purpose)</p>
           </div>
         </div>
-        <button class="btn-icon-ghost" style="color:var(--text-secondary);" onclick="hideModal('specialShuttleModal')">✕</button>
+        <button class="btn-icon-ghost" style="color:var(--text-secondary);"
+          onclick="hideModal('specialShuttleModal')">✕</button>
       </div>
 
       <form id="specialShuttleForm" onsubmit="handleSpecialShuttleSubmit(event)">
@@ -911,20 +1072,27 @@
           <!-- Simple Route Input -->
           <div class="form-group">
             <label>Route / Destination *</label>
-            <input type="text" id="specialRouteInput" placeholder="e.g. RCET Campus ➔ Sheikhupura Mor / Lari Adda" value="RCET Campus ➔ Sheikhupura Mor" required>
+            <input type="text" id="specialRouteInput" placeholder="e.g. RCET Campus ➔ Sheikhupura Mor / Lari Adda"
+              value="RCET Campus ➔ Sheikhupura Mor" required>
           </div>
 
           <!-- Trip Purpose Chips & Input -->
           <div class="form-group">
             <label>Trip Purpose / Category *</label>
             <div class="special-purpose-chips" id="specialPurposeChips">
-              <button type="button" class="purpose-chip-btn selected" onclick="selectSpecialPurposeChip('🎓 Exam Special Departure')">🎓 Exam Special</button>
-              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('🚨 Emergency Breakdown Backup')">🚨 Breakdown Backup</button>
-              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('⚽ Sports Gala / Event Shuttle')">⚽ Sports Gala</button>
-              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('🌧️ Rainy / Weather Special')">🌧️ Weather Special</button>
-              <button type="button" class="purpose-chip-btn" onclick="selectSpecialPurposeChip('🚌 Extra City Shift')">🚌 Extra City Shift</button>
+              <button type="button" class="purpose-chip-btn selected"
+                onclick="selectSpecialPurposeChip('🎓 Exam Special Departure')">🎓 Exam Special</button>
+              <button type="button" class="purpose-chip-btn"
+                onclick="selectSpecialPurposeChip('🚨 Emergency Breakdown Backup')">🚨 Breakdown Backup</button>
+              <button type="button" class="purpose-chip-btn"
+                onclick="selectSpecialPurposeChip('⚽ Sports Gala / Event Shuttle')">⚽ Sports Gala</button>
+              <button type="button" class="purpose-chip-btn"
+                onclick="selectSpecialPurposeChip('🌧️ Rainy / Weather Special')">🌧️ Weather Special</button>
+              <button type="button" class="purpose-chip-btn"
+                onclick="selectSpecialPurposeChip('🚌 Extra City Shift')">🚌 Extra City Shift</button>
             </div>
-            <input type="text" id="specialPurposeInput" value="🎓 Exam Special Departure" style="margin-top:8px;" required>
+            <input type="text" id="specialPurposeInput" value="🎓 Exam Special Departure" style="margin-top:8px;"
+              required>
           </div>
 
           <!-- Date & Time Window -->
@@ -943,9 +1111,12 @@
             </div>
           </div>
 
-          <div style="background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); border: 1.5px solid #FDE68A; border-radius: var(--radius-md); padding: 14px; box-shadow: 0 2px 6px rgba(180, 83, 9, 0.06);">
-            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; font-weight:700; color:#92400E; margin:0;">
-              <input type="checkbox" id="specialBroadcastAlertCheckbox" checked style="width:18px; height:18px; accent-color:#0A2240; cursor:pointer;">
+          <div
+            style="background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); border: 1.5px solid #FDE68A; border-radius: var(--radius-md); padding: 14px; box-shadow: 0 2px 6px rgba(180, 83, 9, 0.06);">
+            <label
+              style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; font-weight:700; color:#92400E; margin:0;">
+              <input type="checkbox" id="specialBroadcastAlertCheckbox" checked
+                style="width:18px; height:18px; accent-color:#0A2240; cursor:pointer;">
               <span>Broadcast Instant Push Alert to Students</span>
             </label>
             <p style="font-size:11.5px; color:#B45309; margin:4px 0 0 28px; line-height:1.4;">

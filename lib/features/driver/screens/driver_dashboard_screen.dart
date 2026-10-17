@@ -148,7 +148,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
               _deviceGpsLocation = LatLng(initialPos.latitude, initialPos.longitude);
               _lastGpsPosition = initialPos;
               _lastGpsTime = DateTime.now();
-              _smoothedSpeed = initialPos.speed > 0.6 ? (initialPos.speed * 3.6).clamp(0.0, 85.0) : 0.0;
+              _smoothedSpeed = initialPos.speed > 0.9 ? (initialPos.speed * 3.6).clamp(0.0, 85.0) : 0.0;
               _currentSpeed = double.parse(_smoothedSpeed.toStringAsFixed(1));
             });
           }
@@ -159,21 +159,21 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
         if (defaultTargetPlatform == TargetPlatform.android) {
           locationSettings = AndroidSettings(
             accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 1, // 1-meter sensitivity
+            distanceFilter: 2, // 2-meter filter rejects idle phone drift while capturing real motion
             intervalDuration: const Duration(milliseconds: 1000), // 1 second update
             forceLocationManager: false,
           );
         } else if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
           locationSettings = AppleSettings(
             accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 1,
+            distanceFilter: 2,
             pauseLocationUpdatesAutomatically: false,
             activityType: ActivityType.automotiveNavigation,
           );
         } else {
           locationSettings = const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 1,
+            distanceFilter: 2,
           );
         }
 
@@ -202,52 +202,62 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
               );
             }
 
-            // 1. Hardware Doppler Speed directly from phone GPS chip (pos.speed is in m/s)
-            if (pos.speed > 0.5) {
+            // 1. Accuracy Check (Ignore degraded fixes with accuracy > 25m)
+            final bool isAccurate = pos.accuracy <= 25.0;
+
+            // 2. Hardware Doppler Speed directly from phone GPS chip (with Vehicle Deadband)
+            // Mobile GPS sensors exhibit 0.2 - 0.7 m/s drift while parked.
+            // Minimum authentic vehicle rolling speed is >= 0.9 m/s (~3.2 km/h).
+            if (isAccurate && pos.speed >= 0.9) {
               rawCandidateSpeed = pos.speed * 3.6; // convert m/s to km/h
               hasMotion = true;
             } 
-            // 2. Delta distance fallback if hardware sensor speed is uncalibrated
-            else if (distMeters >= 2.5 && elapsedSec >= 0.8) {
+            // 3. Delta distance fallback ONLY if hardware speed sensor is uncalibrated/unsupported (pos.speed <= 0.2)
+            // and authentic vehicle translation is verified (> 3.5m in >= 0.9s)
+            else if (isAccurate && pos.speed <= 0.2 && distMeters >= 3.5 && elapsedSec >= 0.9) {
               final deltaSpeed = (distMeters / elapsedSec) * 3.6;
-              if (deltaSpeed >= 2.5) {
+              if (deltaSpeed >= 3.5) {
                 rawCandidateSpeed = deltaSpeed;
                 hasMotion = true;
               }
             }
 
-            // 3. Stationary sensor noise rejection when bus is stopped at traffic light or stop
-            if (!hasMotion || rawCandidateSpeed < 2.0 || (distMeters < 1.5 && pos.speed < 0.6)) {
+            // 4. Standstill / Stop Detection (Rejects stationary GPS jitter at stops and red lights)
+            if (!hasMotion || rawCandidateSpeed < 3.0 || (distMeters < 2.2 && pos.speed < 0.9)) {
               rawCandidateSpeed = 0.0;
               _stationaryTickCount++;
             } else {
               _stationaryTickCount = 0;
             }
 
-            // Clamp GPS anomaly spikes (e.g. university bus won't exceed 85 km/h in city traffic)
+            // Clamp GPS anomaly spikes (university bus won't exceed 85 km/h)
             rawCandidateSpeed = rawCandidateSpeed.clamp(0.0, 85.0);
 
-            // 4. Physical Acceleration/Braking Rate-Limiting (Inertia physics)
-            // City bus normal max acceleration ~ 7 km/h per sec, braking ~ 12 km/h per sec
-            final maxAccel = 7.0 * elapsedSec;
-            final maxDecel = 12.0 * elapsedSec;
+            // 5. Asymmetric Physical Rate Limiting & Inertia
+            // City bus normal acceleration ~ 8 km/h/s, braking ~ 18 km/h/s
+            final maxAccel = 8.0 * elapsedSec;
+            final maxDecel = 18.0 * elapsedSec;
 
             double targetSpeed = rawCandidateSpeed;
             if (targetSpeed > _smoothedSpeed + maxAccel) {
               targetSpeed = _smoothedSpeed + maxAccel;
-            } else if (targetSpeed < _smoothedSpeed - maxDecel && _stationaryTickCount < 2) {
+            } else if (targetSpeed < _smoothedSpeed - maxDecel && _stationaryTickCount == 0) {
               targetSpeed = _smoothedSpeed - maxDecel;
             }
 
-            // 5. Exponential Moving Average (EMA) smoothing for silky transitions
-            const double alpha = 0.35;
-            if (_stationaryTickCount >= 2 || (targetSpeed == 0.0 && _smoothedSpeed < 2.0)) {
+            // 6. Asymmetric EMA Smoothing (Fast Brake Response + Silky Acceleration + Instant Stop)
+            if (_stationaryTickCount >= 1 || (targetSpeed == 0.0 && _smoothedSpeed < 4.0)) {
+              // Instant snap to 0.0 when bus stops (eliminates the 5-second crawling deceleration lag)
               _smoothedSpeed = 0.0;
             } else {
+              // When braking: use fast alpha (0.70) so speedometer tracks the brake pedal
+              // When accelerating: use smooth alpha (0.35) for a silky rising gauge
+              final double alpha = (targetSpeed < _smoothedSpeed) ? 0.70 : 0.35;
               _smoothedSpeed = (_smoothedSpeed * (1.0 - alpha)) + (targetSpeed * alpha);
             }
 
-            if (_smoothedSpeed < 1.0) {
+            // Clean deadband below walking crawl
+            if (_smoothedSpeed < 2.0) {
               _smoothedSpeed = 0.0;
             }
 

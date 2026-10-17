@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,7 +11,7 @@ import 'package:http/http.dart' as http;
 import '../data/services/firebase_realtime_tracking_service.dart';
 import '../data/services/firestore_student_service.dart';
 
-enum UserRole { student, driver }
+enum UserRole { student, staff, driver }
 
 class AuthProvider extends ChangeNotifier {
   static const String _onboardingKey = 'uniride_onboarding_completed';
@@ -23,6 +24,7 @@ class AuthProvider extends ChangeNotifier {
   static const String _driverIdKey = 'uniride_driver_id';
   static const String _studentDataKey = 'uniride_student_profile_json';
   static const String _registeredUsersMapKey = 'uniride_local_registered_users_map';
+  static const String _deviceIdKey = 'uniride_device_unique_id';
 
   static const String _pwdSalt = 'uniride_student_pwd_salt_v2026';
 
@@ -58,6 +60,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   UserRole get role => _role;
   bool get isDriver => _role == UserRole.driver;
+  bool get isStaff => _role == UserRole.staff;
   DriverModel? get driver => _driver;
   String? get driverAssignedBusId => _driverAssignedBusId;
   StudentModel get student => _student;
@@ -82,6 +85,47 @@ class AuthProvider extends ChangeNotifier {
     return result == 0;
   }
 
+  /// Retrieves or generates a persistent unique Device ID for this device
+  Future<String> getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString(_deviceIdKey);
+    if (deviceId == null || deviceId.isEmpty) {
+      final rand = Random().nextInt(900000) + 100000;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      deviceId = 'dev_${now}_$rand';
+      await prefs.setString(_deviceIdKey, deviceId);
+    }
+    return deviceId;
+  }
+
+  /// Sanitizes string keys for safe Firebase Realtime Database paths
+  static String sanitizeFirebaseKey(String key) {
+    return key
+        .trim()
+        .toLowerCase()
+        .replaceAll('.', '_')
+        .replaceAll('#', '_')
+        .replaceAll(r'$', '_')
+        .replaceAll('[', '_')
+        .replaceAll(']', '_')
+        .replaceAll('/', '_')
+        .replaceAll(' ', '_');
+  }
+
+  /// Resolves a single consistent session key for any student login variant
+  String _resolveSessionKey(StudentModel s) {
+    if (s.username.trim().isNotEmpty) {
+      return sanitizeFirebaseKey(s.username);
+    }
+    if (s.studentId.trim().isNotEmpty) {
+      return sanitizeFirebaseKey(s.studentId);
+    }
+    if (s.email.trim().isNotEmpty) {
+      return sanitizeFirebaseKey(s.email);
+    }
+    return 'unknown_student';
+  }
+
   Future<void> _loadAuthState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -102,6 +146,15 @@ class AuthProvider extends ChangeNotifier {
           rating: 4.9,
         );
         _driverAssignedBusId = prefs.getString(_driverBusKey) ?? 'bus_gau_2555';
+      } else if (roleStr == 'staff') {
+        _role = UserRole.staff;
+        final studentJson = prefs.getString(_studentDataKey);
+        if (studentJson != null && studentJson.isNotEmpty) {
+          try {
+            final map = jsonDecode(studentJson) as Map<String, dynamic>;
+            _student = StudentModel.fromJson(map);
+          } catch (_) {}
+        }
       } else {
         _role = UserRole.student;
         final studentJson = prefs.getString(_studentDataKey);
@@ -321,6 +374,23 @@ class AuthProvider extends ChangeNotifier {
       await http.delete(
         Uri.parse('$dbUrl/student_otps/$emailKey.json'),
       ).timeout(const Duration(seconds: 3));
+
+      // 6b. Single Device Policy: Register active device session
+      final myDeviceId = await getDeviceId();
+      await http.put(
+        Uri.parse('$dbUrl/active_sessions/$cleanUsername.json'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'isLoggedIn': true,
+          'deviceId': myDeviceId,
+          'username': cleanUsername,
+          'studentName': fullName.trim().isNotEmpty ? fullName.trim() : 'Student',
+          'rollNo': cleanRollNo,
+          'loginTimestamp': DateTime.now().millisecondsSinceEpoch,
+          'loginAt': DateTime.now().toIso8601String(),
+          'lastActive': DateTime.now().toIso8601String(),
+        }),
+      ).timeout(const Duration(seconds: 4));
     } catch (_) {}
 
     // 7. Cloud Firestore Dual-Sync (Automatic Document Storage)
@@ -361,6 +431,186 @@ class AuthProvider extends ChangeNotifier {
     await prefs.setString(_studentDataKey, jsonEncode(_student.toJson()));
 
     return {'success': true, 'message': 'Account created successfully!'};
+  }
+
+  /// Registers a university faculty/staff member with Name, official @uet.edu.pk email, password, and verifies OTP
+  Future<Map<String, dynamic>> registerStaffWithOtp({
+    required String fullName,
+    required String email,
+    required String password,
+    required String enteredOtp,
+  }) async {
+    final cleanOtp = enteredOtp.trim();
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanName = fullName.trim();
+    final now = DateTime.now();
+
+    // 1. Strict UET Email Domain Validation: Only @uet.edu.pk allowed (excluding student subdomain)
+    if (!cleanEmail.endsWith('@uet.edu.pk') || cleanEmail.contains('@student.')) {
+      return {
+        'success': false,
+        'message': 'Sirf official UET Outlook email (@uet.edu.pk) allow hai. Please enter a valid @uet.edu.pk address.',
+      };
+    }
+
+    if (cleanOtp.isEmpty) {
+      return {'success': false, 'message': 'Please enter the 6-digit OTP code sent to your Outlook email.'};
+    }
+
+    // 2. Lockout Check
+    if (_lockedUntil != null && now.isBefore(_lockedUntil!)) {
+      final remainingMins = _lockedUntil!.difference(now).inMinutes + 1;
+      return {
+        'success': false,
+        'message': 'Account verification is temporarily locked. Please try again in $remainingMins minutes.'
+      };
+    }
+
+    // 3. Expiration Check (Strict 5-minute window)
+    if (_otpExpiresAt != null && now.isAfter(_otpExpiresAt!)) {
+      _activeGeneratedOtp = null;
+      _pendingOtpEmail = null;
+      return {
+        'success': false,
+        'message': 'OTP code has expired. Please request a fresh OTP to your Outlook email.'
+      };
+    }
+
+    // 4. Cryptographic Hash Comparison
+    bool isCodeValid = false;
+    if (_activeGeneratedOtp != null) {
+      final expectedHash = EmailOtpService.computeOtpHash(email: cleanEmail, otpCode: _activeGeneratedOtp!);
+      final enteredHash = EmailOtpService.computeOtpHash(email: cleanEmail, otpCode: cleanOtp);
+      isCodeValid = _constantTimeEquals(expectedHash, enteredHash);
+    } else if (kDebugMode && cleanOtp == '123456') {
+      isCodeValid = true;
+    }
+
+    if (!isCodeValid) {
+      _failedOtpAttempts++;
+      if (_failedOtpAttempts >= 3) {
+        _activeGeneratedOtp = null;
+        _pendingOtpEmail = null;
+        _lockedUntil = DateTime.now().add(const Duration(minutes: 5));
+        notifyListeners();
+        return {
+          'success': false,
+          'message': 'Too many invalid attempts. Account is locked for 5 minutes for security.'
+        };
+      }
+      return {
+        'success': false,
+        'message': 'Invalid OTP code. (${3 - _failedOtpAttempts} attempts remaining)'
+      };
+    }
+
+    _isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final rawUsername = cleanEmail.split('@').first.replaceAll('.', '_').replaceAll(' ', '_');
+    final cleanUsername = sanitizeFirebaseKey(rawUsername);
+    final hashedPassword = hashPassword(password.trim());
+
+    final newStaff = StudentModel(
+      id: 'staff_${cleanUsername}_${DateTime.now().millisecondsSinceEpoch % 10000}',
+      name: cleanName.isNotEmpty ? cleanName : 'Staff Member',
+      studentId: 'STAFF-${DateTime.now().year % 100}',
+      username: cleanUsername,
+      email: cleanEmail,
+      password: hashedPassword,
+      department: 'Faculty & University Staff',
+      university: 'UET Gujranwala (RCET)',
+    );
+
+    // 5. Save to Firebase Realtime Database
+    try {
+      final dbUrl = FirebaseRealtimeTrackingService.resolvedUrl;
+      final emailKey = cleanEmail.replaceAll('.', '_').replaceAll('@', '_at_');
+      final staffJson = newStaff.toJson();
+
+      // Save by username
+      await http.put(
+        Uri.parse('$dbUrl/students/$cleanUsername.json'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(staffJson),
+      ).timeout(const Duration(seconds: 4));
+
+      // Save by email for email login lookup
+      await http.put(
+        Uri.parse('$dbUrl/students_by_email/$emailKey.json'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(staffJson),
+      ).timeout(const Duration(seconds: 4));
+
+      // Save also under /staff registry
+      await http.put(
+        Uri.parse('$dbUrl/staff/$cleanUsername.json'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(staffJson),
+      ).timeout(const Duration(seconds: 4));
+
+      // Purge used OTP node from Cloud
+      await http.delete(
+        Uri.parse('$dbUrl/student_otps/$emailKey.json'),
+      ).timeout(const Duration(seconds: 3));
+
+      // Single Device Policy: Register active device session
+      final myDeviceId = await getDeviceId();
+      await http.put(
+        Uri.parse('$dbUrl/active_sessions/$cleanUsername.json'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'isLoggedIn': true,
+          'deviceId': myDeviceId,
+          'username': cleanUsername,
+          'studentName': newStaff.name,
+          'rollNo': newStaff.studentId,
+          'loginTimestamp': DateTime.now().millisecondsSinceEpoch,
+          'loginAt': DateTime.now().toIso8601String(),
+          'lastActive': DateTime.now().toIso8601String(),
+        }),
+      ).timeout(const Duration(seconds: 4));
+    } catch (_) {}
+
+    // 6. Cloud Firestore Dual-Sync (Dedicated 'faculty' collection)
+    try {
+      await FirestoreStudentService().saveFacultyToFirestore(newStaff);
+    } catch (_) {}
+
+    // 7. Save locally in SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final localMapStr = prefs.getString(_registeredUsersMapKey);
+    Map<String, dynamic> localUsers = {};
+    if (localMapStr != null && localMapStr.isNotEmpty) {
+      try {
+        localUsers = jsonDecode(localMapStr) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+    localUsers[cleanUsername] = newStaff.toJson();
+    localUsers[cleanEmail] = newStaff.toJson();
+    await prefs.setString(_registeredUsersMapKey, jsonEncode(localUsers));
+
+    // 8. Update in-memory session
+    _student = newStaff;
+    _isLoggedIn = true;
+    _isGuest = false;
+    _onboardingCompleted = true;
+    _role = UserRole.staff;
+    _pendingOtpEmail = null;
+    _activeGeneratedOtp = null;
+    _failedOtpAttempts = 0;
+    _isLoading = false;
+    notifyListeners();
+
+    await prefs.setBool(_authKey, true);
+    await prefs.setBool(_guestKey, false);
+    await prefs.setBool(_onboardingKey, true);
+    await prefs.setString(_roleKey, 'staff');
+    await prefs.setString(_studentDataKey, jsonEncode(_student.toJson()));
+
+    return {'success': true, 'message': 'Staff account created successfully!'};
   }
 
   /// Student Login with Username, Roll No, or Email & Password
@@ -415,10 +665,15 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (_) {}
 
-    // 2. Try Cloud Firestore lookup as secondary cloud backup
+    // 2. Try Cloud Firestore lookup as secondary cloud backup (students & faculty collections)
     if (matchedStudent == null) {
       try {
         matchedStudent = await FirestoreStudentService().getStudentFromFirestore(query);
+      } catch (_) {}
+    }
+    if (matchedStudent == null) {
+      try {
+        matchedStudent = await FirestoreStudentService().getFacultyFromFirestore(query);
       } catch (_) {}
     }
 
@@ -474,22 +729,89 @@ class AuthProvider extends ChangeNotifier {
       return {'success': false, 'message': 'Incorrect password. Please try again.'};
     }
 
+    // 4. Strict Single-Device Session Enforcement
+    // Check if the student is currently logged in on another mobile device
+    final sessionKey = _resolveSessionKey(matchedStudent);
+    final myDeviceId = await getDeviceId();
+    final dbUrl = FirebaseRealtimeTrackingService.resolvedUrl;
+
+    try {
+      final sessionResp = await http.get(
+        Uri.parse('$dbUrl/active_sessions/$sessionKey.json'),
+      ).timeout(const Duration(seconds: 4));
+
+      if (sessionResp.statusCode == 200 && sessionResp.body != 'null') {
+        final decodedSession = jsonDecode(sessionResp.body);
+        if (decodedSession is Map) {
+          final bool isAlreadyLoggedIn = decodedSession['isLoggedIn'] == true;
+          final String? remoteDeviceId = decodedSession['deviceId']?.toString();
+
+          // If currently logged in on a different physical device
+          if (isAlreadyLoggedIn &&
+              remoteDeviceId != null &&
+              remoteDeviceId.isNotEmpty &&
+              remoteDeviceId != myDeviceId) {
+            _isLoading = false;
+            notifyListeners();
+            return {
+              'success': false,
+              'alreadyLoggedIn': true,
+              'message':
+                  'Yeh account pehle se doosray mobile par login hai. Pehle us mobile se Logout karein, phir yahan login ho sakega.\n\n(This account is already logged in on another device. Please log out from that device first.)',
+            };
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Active session verification note: $e');
+      }
+    }
+
+    // Register active device session in Firebase Realtime Database
+    try {
+      await http.put(
+        Uri.parse('$dbUrl/active_sessions/$sessionKey.json'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'isLoggedIn': true,
+          'deviceId': myDeviceId,
+          'username': matchedStudent.username,
+          'studentName': matchedStudent.name,
+          'rollNo': matchedStudent.studentId,
+          'loginTimestamp': DateTime.now().millisecondsSinceEpoch,
+          'loginAt': DateTime.now().toIso8601String(),
+          'lastActive': DateTime.now().toIso8601String(),
+        }),
+      ).timeout(const Duration(seconds: 4));
+    } catch (_) {}
+
+    // Detect whether user is Staff / Faculty
+    final bool isStaffUser = matchedStudent.department.toLowerCase().contains('staff') ||
+        matchedStudent.department.toLowerCase().contains('faculty') ||
+        matchedStudent.studentId.toUpperCase().contains('STAFF') ||
+        (matchedStudent.email.toLowerCase().endsWith('@uet.edu.pk') &&
+            !matchedStudent.email.toLowerCase().contains('@student.'));
+
     // Login successful
     _student = matchedStudent;
     _isLoggedIn = true;
     _isGuest = false;
     _onboardingCompleted = true;
-    _role = UserRole.student;
+    _role = isStaffUser ? UserRole.staff : UserRole.student;
     _isLoading = false;
     notifyListeners();
 
     await prefs.setBool(_authKey, true);
     await prefs.setBool(_guestKey, false);
     await prefs.setBool(_onboardingKey, true);
-    await prefs.setString(_roleKey, 'student');
+    await prefs.setString(_roleKey, isStaffUser ? 'staff' : 'student');
     await prefs.setString(_studentDataKey, jsonEncode(_student.toJson()));
 
-    return {'success': true, 'message': 'Welcome back, ${_student.name}!'};
+    final welcomeMsg = isStaffUser
+        ? '💼 Welcome, ${_student.name} (Faculty/Staff)!'
+        : '🎓 Welcome back, ${_student.name}!';
+    return {'success': true, 'message': welcomeMsg, 'isStaff': isStaffUser};
   }
 
 
@@ -541,49 +863,204 @@ class AuthProvider extends ChangeNotifier {
     return true;
   }
 
-  Future<bool> signInAsDriver({
+  /// Driver Sign-In: Authenticates Driver ID and Security PIN against Firebase Database (/drivers)
+  /// Also enforces single-device session lock.
+  Future<Map<String, dynamic>> signInAsDriver({
     required String driverIdOrPhone,
     required String pin,
     required String busId,
     String? driverName,
   }) async {
-    if (driverIdOrPhone.trim().isEmpty || pin.trim().isEmpty) {
-      return false;
+    final queryId = driverIdOrPhone.trim();
+    final cleanPin = pin.trim();
+
+    if (queryId.isEmpty || cleanPin.isEmpty) {
+      return {
+        'success': false,
+        'message': 'Please enter both Driver ID and Security PIN.',
+      };
     }
+
     _isLoading = true;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    final dbUrl = FirebaseRealtimeTrackingService.resolvedUrl;
+    Map<String, dynamic>? matchedDriverData;
+    String matchedDriverId = queryId;
+
+    // 1. Fetch and match from Firebase Realtime Database
+    try {
+      // A. Direct ID Lookup: /drivers/<id>.json
+      final directResp = await http.get(
+        Uri.parse('$dbUrl/drivers/$queryId.json'),
+      ).timeout(const Duration(seconds: 4));
+
+      if (directResp.statusCode == 200 && directResp.body != 'null') {
+        final decoded = jsonDecode(directResp.body);
+        if (decoded is Map) {
+          matchedDriverData = Map<String, dynamic>.from(decoded);
+          matchedDriverId = (matchedDriverData['id'] ?? queryId).toString();
+        }
+      }
+
+      // B. Scan /drivers.json collection for case-insensitive ID or Phone match
+      if (matchedDriverData == null) {
+        final allDriversResp = await http.get(
+          Uri.parse('$dbUrl/drivers.json'),
+        ).timeout(const Duration(seconds: 4));
+
+        if (allDriversResp.statusCode == 200 && allDriversResp.body != 'null') {
+          final decoded = jsonDecode(allDriversResp.body);
+          if (decoded is Map) {
+            for (final entry in decoded.entries) {
+              if (entry.value is Map) {
+                final d = Map<String, dynamic>.from(entry.value as Map);
+                final dId = (d['id'] ?? entry.key).toString();
+                final dPhone = (d['phone'] ?? '').toString();
+
+                if (dId.toLowerCase() == queryId.toLowerCase() ||
+                    (queryId.length >= 6 && dPhone.replaceAll(' ', '').contains(queryId.replaceAll(' ', '')))) {
+                  matchedDriverData = d;
+                  matchedDriverId = dId;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Driver database lookup note: $e');
+      }
+    }
+
+    // 2. Fallback check for initial demo drivers if offline or not yet initialized
+    if (matchedDriverData == null) {
+      final demoDrivers = {
+        'drv_01': {'id': 'drv_01', 'name': 'Muhammad Naveed', 'phone': '+92 300 1234567', 'pin': '1234', 'assignedBusId': 'bus_01'},
+        'drv_02': {'id': 'drv_02', 'name': 'Tariq Mehmood', 'phone': '+92 301 2345678', 'pin': '2555', 'assignedBusId': 'bus_02'},
+        'drv_03': {'id': 'drv_03', 'name': 'Rashid Minhas', 'phone': '+92 302 3456789', 'pin': '4555', 'assignedBusId': 'bus_03'},
+        'drv_04': {'id': 'drv_04', 'name': 'Abdul Qayyum', 'phone': '+92 303 4567890', 'pin': '3033', 'assignedBusId': 'bus_04'},
+        'drv_05': {'id': 'drv_05', 'name': 'Ghulam Mustafa', 'phone': '+92 304 5678901', 'pin': '6834', 'assignedBusId': 'bus_05'},
+      };
+
+      if (demoDrivers.containsKey(queryId.toLowerCase())) {
+        matchedDriverData = demoDrivers[queryId.toLowerCase()];
+        matchedDriverId = matchedDriverData!['id'].toString();
+      }
+    }
+
+    // Driver not found
+    if (matchedDriverData == null) {
+      _isLoading = false;
+      notifyListeners();
+      return {
+        'success': false,
+        'message': 'Driver ID "$queryId" not found in transport database. Please verify credentials set by Admin on Web Portal.',
+      };
+    }
+
+    // 3. Verify PIN against Database
+    final expectedPin = (matchedDriverData['pin'] ?? '1234').toString().trim();
+    if (cleanPin != expectedPin) {
+      _isLoading = false;
+      notifyListeners();
+      return {
+        'success': false,
+        'message': 'Incorrect Security PIN for driver "${matchedDriverData['name']}". Please re-enter the PIN set by Admin.',
+      };
+    }
+
+    // 4. Single-Device Session Enforcement for Driver
+    final driverSessionKey = sanitizeFirebaseKey('driver_$matchedDriverId');
+    final myDeviceId = await getDeviceId();
+
+    try {
+      final sessionResp = await http.get(
+        Uri.parse('$dbUrl/active_sessions/$driverSessionKey.json'),
+      ).timeout(const Duration(seconds: 4));
+
+      if (sessionResp.statusCode == 200 && sessionResp.body != 'null') {
+        final decodedSession = jsonDecode(sessionResp.body);
+        if (decodedSession is Map) {
+          final bool isAlreadyLoggedIn = decodedSession['isLoggedIn'] == true;
+          final String? remoteDeviceId = decodedSession['deviceId']?.toString();
+
+          if (isAlreadyLoggedIn &&
+              remoteDeviceId != null &&
+              remoteDeviceId.isNotEmpty &&
+              remoteDeviceId != myDeviceId) {
+            _isLoading = false;
+            notifyListeners();
+            return {
+              'success': false,
+              'alreadyLoggedIn': true,
+              'message':
+                  'Yeh Driver account (${matchedDriverData['name']}) pehle se kisi doosray mobile par login hai. Pehle us device se Logout karein, phir yahan duty shuru karein.\n\n(Driver already logged in on another mobile device.)',
+            };
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 5. Register active driver session on Firebase RTDB
+    try {
+      await http.put(
+        Uri.parse('$dbUrl/active_sessions/$driverSessionKey.json'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'isLoggedIn': true,
+          'deviceId': myDeviceId,
+          'driverId': matchedDriverId,
+          'driverName': matchedDriverData['name'],
+          'busId': busId,
+          'loginTimestamp': DateTime.now().millisecondsSinceEpoch,
+          'loginAt': DateTime.now().toIso8601String(),
+          'lastActive': DateTime.now().toIso8601String(),
+        }),
+      ).timeout(const Duration(seconds: 4));
+    } catch (_) {}
+
+    // 6. Build and store Driver Profile
+    final resolvedBusId = (matchedDriverData['assignedBusId'] != null &&
+            matchedDriverData['assignedBusId'].toString().isNotEmpty)
+        ? matchedDriverData['assignedBusId'].toString()
+        : busId;
+
+    _driver = DriverModel(
+      id: matchedDriverId,
+      name: (matchedDriverData['name'] ?? driverName ?? 'Transport Driver').toString(),
+      phone: (matchedDriverData['phone'] ?? '+92 300 1234567').toString(),
+      rating: (matchedDriverData['rating'] as num?)?.toDouble() ?? 4.9,
+    );
 
     _isLoggedIn = true;
     _isGuest = false;
     _onboardingCompleted = true;
     _role = UserRole.driver;
-    _driverAssignedBusId = busId;
-
-    final resolvedName = driverName ?? (driverIdOrPhone.contains('2') ? 'Tariq Mehmood' : 'Muhammad Ali');
-    final resolvedPhone = driverIdOrPhone.contains('+') ? driverIdOrPhone : '+92 300 1234567';
-
-    _driver = DriverModel(
-      id: driverIdOrPhone.trim(),
-      name: resolvedName,
-      phone: resolvedPhone,
-      rating: 4.9,
-    );
+    _driverAssignedBusId = resolvedBusId;
 
     _isLoading = false;
     notifyListeners();
 
+    // 7. Persist in SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_authKey, true);
     await prefs.setBool(_guestKey, false);
     await prefs.setBool(_onboardingKey, true);
     await prefs.setString(_roleKey, 'driver');
-    await prefs.setString(_driverBusKey, busId);
+    await prefs.setString(_driverBusKey, resolvedBusId);
     await prefs.setString(_driverIdKey, _driver!.id);
     await prefs.setString(_driverNameKey, _driver!.name);
     await prefs.setString(_driverPhoneKey, _driver!.phone);
-    return true;
+
+    return {
+      'success': true,
+      'message': 'Driver Duty Activated: ${_driver!.name}',
+      'driverName': _driver!.name,
+      'busId': resolvedBusId,
+    };
   }
 
   Future<void> continueAsGuest() async {
@@ -608,7 +1085,8 @@ class AuthProvider extends ChangeNotifier {
     await prefs.setString(_roleKey, 'student');
   }
 
-  Future<void> logout() async {
+  /// Clears in-memory and local disk authentication state
+  Future<void> logoutLocally() async {
     _isLoggedIn = false;
     _isGuest = false;
     _role = UserRole.student;
@@ -627,5 +1105,82 @@ class AuthProvider extends ChangeNotifier {
     await prefs.remove(_driverNameKey);
     await prefs.remove(_driverPhoneKey);
     await prefs.remove(_studentDataKey);
+  }
+
+  /// Full Logout: Releases cloud device lock so other mobile devices can now log in
+  Future<void> logout() async {
+    final sessionKey = _resolveSessionKey(_student);
+    final isDriverLogout = _role == UserRole.driver && _driver != null;
+    final driverKey = isDriverLogout ? sanitizeFirebaseKey('driver_${_driver!.id}') : '';
+
+    await logoutLocally();
+
+    // Release remote active session in Firebase Realtime Database
+    try {
+      final dbUrl = FirebaseRealtimeTrackingService.resolvedUrl;
+      if (isDriverLogout && driverKey.isNotEmpty) {
+        await http.put(
+          Uri.parse('$dbUrl/active_sessions/$driverKey.json'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'isLoggedIn': false,
+            'deviceId': '',
+            'loggedOutAt': DateTime.now().toIso8601String(),
+          }),
+        ).timeout(const Duration(seconds: 4));
+      } else if (sessionKey.isNotEmpty && sessionKey != 'usr_guest') {
+        await http.put(
+          Uri.parse('$dbUrl/active_sessions/$sessionKey.json'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'isLoggedIn': false,
+            'deviceId': '',
+            'loggedOutAt': DateTime.now().toIso8601String(),
+          }),
+        ).timeout(const Duration(seconds: 4));
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error releasing session on logout: $e');
+      }
+    }
+  }
+
+  /// Verifies if this device still holds the active session in Firebase RTDB
+  /// If the user logged out from elsewhere or another device took over, returns false.
+  Future<bool> verifyActiveSession() async {
+    if (!_isLoggedIn || _isGuest) return true;
+    try {
+      final dbUrl = FirebaseRealtimeTrackingService.resolvedUrl;
+      final myDeviceId = await getDeviceId();
+      String sessionKey = '';
+      if (_role == UserRole.driver && _driver != null) {
+        sessionKey = sanitizeFirebaseKey('driver_${_driver!.id}');
+      } else {
+        sessionKey = _resolveSessionKey(_student);
+      }
+      if (sessionKey.isEmpty || sessionKey == 'usr_guest') return true;
+
+      final resp = await http.get(
+        Uri.parse('$dbUrl/active_sessions/$sessionKey.json'),
+      ).timeout(const Duration(seconds: 4));
+
+      if (resp.statusCode == 200 && resp.body != 'null') {
+        final data = jsonDecode(resp.body);
+        if (data is Map) {
+          final bool isRemoteLoggedIn = data['isLoggedIn'] == true;
+          final String? remoteDeviceId = data['deviceId']?.toString();
+          // If remote session is inactive or belongs to another device
+          if (!isRemoteLoggedIn ||
+              (remoteDeviceId != null &&
+                  remoteDeviceId.isNotEmpty &&
+                  remoteDeviceId != myDeviceId)) {
+            await logoutLocally();
+            return false;
+          }
+        }
+      }
+    } catch (_) {}
+    return true;
   }
 }
